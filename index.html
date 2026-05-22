@@ -903,44 +903,98 @@ function renderTxItem(t) {
 function renderSplit() {
   const txs = getMonthTx();
   const expenses = txs.filter(t => t.type === 'expense');
-  
-  let p1total = 0, p2total = 0, sharedTotal = 0;
-  let p1owes = 0, p2owes = 0;
+  const totalExpAll = expenses.reduce((s, t) => s + t.amount, 0);
 
+  // --- Responsabilidade real (por como os lançamentos foram marcados) ---
+  let p1resp = 0, p2resp = 0;
   expenses.forEach(t => {
-    if (t.person === 'p1') p1total += t.amount;
-    else if (t.person === 'p2') p2total += t.amount;
+    if (t.person === 'p1') { p1resp += t.amount; }
+    else if (t.person === 'p2') { p2resp += t.amount; }
     else if (t.person === 'both') {
-      sharedTotal += t.amount;
-      // calculate split
-      let p1share = 0.5, p2share = 0.5;
+      let p1share = 0.5;
       if (t.splitMode === 'proporcional') {
-        const tot = (state.p1income || 1) + (state.p2income || 1);
-        p1share = state.p1income / tot;
-        p2share = state.p2income / tot;
+        const tot = (state.p1income || 0) + (state.p2income || 0);
+        p1share = tot > 0 ? state.p1income / tot : 0.5;
       } else if (t.splitMode === 'custom') {
         p1share = (t.splitPct || 50) / 100;
-        p2share = 1 - p1share;
       }
-      p1total += t.amount * p1share;
-      p2total += t.amount * p2share;
+      p1resp += t.amount * p1share;
+      p2resp += t.amount * (1 - p1share);
     }
   });
 
-  // paid by p1 for shared
-  const p1paid = expenses.filter(t => t.person === 'p1').reduce((s, t) => s + t.amount, 0);
-  const p2paid = expenses.filter(t => t.person === 'p2').reduce((s, t) => s + t.amount, 0);
-  const sharedPaidByP1 = expenses.filter(t => t.person === 'both').reduce((s, t) => s + t.amount, 0);
-  // simplified: just show each person's share vs what they paid
-  const grandTotal = p1total + p2total - (expenses.filter(t => t.person === 'both').reduce((s, t) => s + t.amount, 0));
-  const totalExpAll = expenses.reduce((s, t) => s + t.amount, 0);
-  const p1Pct = totalExpAll > 0 ? (p1total / totalExpAll * 100) : 50;
+  const p1Pct = totalExpAll > 0 ? (p1resp / totalExpAll * 100) : 50;
   const p2Pct = 100 - p1Pct;
+  const diffReal = Math.abs(p1resp - p2resp);
 
-  // who owes whom (simplified: by person-tagged expenses only)
-  const p1resp = p1total; // p1's responsibility
-  const p2resp = p2total;
-  const diff = Math.abs(p1resp - p2resp);
+  // --- Divisão proporcional à renda ---
+  const totalIncome = (state.p1income || 0) + (state.p2income || 0);
+  const hasIncome = totalIncome > 0;
+  const p1ratio = hasIncome ? state.p1income / totalIncome : 0.5;
+  const p2ratio = 1 - p1ratio;
+  const p1shouldPay = totalExpAll * p1ratio;
+  const p2shouldPay = totalExpAll * p2ratio;
+  // Quanto falta/sobrou em relação ao ideal por renda
+  const p1diffIncome = p1resp - p1shouldPay; // positivo = pagou mais que devia
+  const p2diffIncome = p2resp - p2shouldPay;
+  // Ajuste: quem pagou menos que sua proporção deve pagar ao outro
+  const incomeAdjust = Math.abs(p1diffIncome);
+  const incomeDebtor = p1diffIncome < -0.01 ? state.p1name : (p2diffIncome < -0.01 ? state.p2name : null);
+  const incomeCreditor = p1diffIncome < -0.01 ? state.p2name : (p2diffIncome < -0.01 ? state.p1name : null);
+
+  const incomeCard = hasIncome ? `
+  <div class="card">
+    <div class="card-title">⚖️ Por Proporção de Renda</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <div style="flex:1;background:var(--surface2);border-radius:var(--radius-sm);padding:12px;border-top:3px solid var(--p1)">
+        <div style="font-size:.72rem;color:var(--text3);margin-bottom:2px">${state.p1name}</div>
+        <div style="font-family:var(--font-display);font-weight:700;font-size:1rem;color:var(--p1)">${(p1ratio*100).toFixed(0)}% da renda</div>
+        <div style="font-size:.75rem;color:var(--text2);margin-top:2px">${fmt(state.p1income)}/mês</div>
+      </div>
+      <div style="flex:1;background:var(--surface2);border-radius:var(--radius-sm);padding:12px;border-top:3px solid var(--p2)">
+        <div style="font-size:.72rem;color:var(--text3);margin-bottom:2px">${state.p2name}</div>
+        <div style="font-family:var(--font-display);font-weight:700;font-size:1rem;color:var(--p2)">${(p2ratio*100).toFixed(0)}% da renda</div>
+        <div style="font-size:.75rem;color:var(--text2);margin-top:2px">${fmt(state.p2income)}/mês</div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;margin-bottom:12px">
+      <div style="font-size:.75rem;color:var(--text3);margin-bottom:10px">Total de gastos no mês: <strong style="color:var(--text)">${fmt(totalExpAll)}</strong></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${[
+          { name: state.p1name, cls: 'p1', should: p1shouldPay, resp: p1resp, ratio: p1ratio },
+          { name: state.p2name, cls: 'p2', should: p2shouldPay, resp: p2resp, ratio: p2ratio }
+        ].map(p => {
+          const over = p.resp - p.should;
+          const statusColor = Math.abs(over) < 0.01 ? 'var(--green)' : over > 0 ? 'var(--red)' : 'var(--orange)';
+          const statusText = Math.abs(over) < 0.01 ? 'exato ✓' : over > 0 ? `pagou ${fmt(Math.abs(over))} a mais` : `pagou ${fmt(Math.abs(over))} a menos`;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="display:flex;align-items:center;gap:6px;min-width:0">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--${p.cls});flex-shrink:0"></span>
+              <span style="font-size:.85rem;font-weight:600">${p.name}</span>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:var(--font-display);font-weight:700;font-size:.9rem">deveria: ${fmt(p.should)}</div>
+              <div style="font-size:.72rem;color:${statusColor}">${statusText}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    ${incomeAdjust > 0.01 && incomeDebtor ? `
+    <div style="background:#ffaa4d18;border:1px solid #ffaa4d33;border-radius:var(--radius-sm);padding:14px;text-align:center">
+      <div style="font-size:.78rem;color:var(--text3);margin-bottom:4px">Ajuste proporcional</div>
+      <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">
+        ${incomeDebtor} deve <span style="color:var(--orange)">${fmt(incomeAdjust)}</span> para ${incomeCreditor}
+      </div>
+    </div>` : `<div style="background:#34d48a18;border:1px solid #34d48a33;border-radius:var(--radius-sm);padding:12px;text-align:center;color:var(--green);font-size:.9rem">✅ Cada um pagou exatamente sua proporção!</div>`}
+  </div>` : `
+  <div class="card">
+    <div style="padding:16px;text-align:center">
+      <div style="font-size:1.5rem;margin-bottom:8px">⚖️</div>
+      <div style="font-size:.9rem;color:var(--text2);margin-bottom:12px">Configure a renda de cada um para ver a divisão proporcional</div>
+      <button class="btn-secondary" style="padding:8px 16px" onclick="showTab('settings', document.querySelectorAll('.nav-tab')[4])">Ir para Configurações</button>
+    </div>
+  </div>`;
 
   return `
   <div class="card">
@@ -949,12 +1003,12 @@ function renderSplit() {
       <div class="person-card p1">
         <div class="person-name">${state.p1name}</div>
         <div class="person-total">${fmt(p1resp)}</div>
-        <div class="person-sub">Responsabilidade total</div>
+        <div class="person-sub">responsável por</div>
       </div>
       <div class="person-card p2">
         <div class="person-name">${state.p2name}</div>
         <div class="person-total">${fmt(p2resp)}</div>
-        <div class="person-sub">Responsabilidade total</div>
+        <div class="person-sub">responsável por</div>
       </div>
     </div>
     <div class="balance-section">
@@ -966,16 +1020,17 @@ function renderSplit() {
         <div class="balance-fill" style="width:${p1Pct.toFixed(1)}%;background:linear-gradient(to right,var(--p1),var(--p2))"></div>
       </div>
     </div>
-    ${diff > 0.01 ? `
-    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;text-align:center">
-      <div style="font-size:.8rem;color:var(--text3);margin-bottom:4px">Ajuste de contas</div>
-      <div style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">
+    ${diffReal > 0.01 ? `
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center">
+      <div style="font-size:.75rem;color:var(--text3);margin-bottom:3px">Ajuste (como foi lançado)</div>
+      <div style="font-family:var(--font-display);font-size:1rem;font-weight:700">
         ${p1resp > p2resp ? state.p2name : state.p1name} deve
-        <span style="color:var(--orange)">${fmt(diff)}</span>
+        <span style="color:var(--orange)">${fmt(diffReal)}</span>
         para ${p1resp > p2resp ? state.p1name : state.p2name}
       </div>
-    </div>` : `<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:14px;text-align:center;color:var(--green)">✅ Contas equilibradas!</div>`}
+    </div>` : `<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center;color:var(--green);font-size:.85rem">✅ Contas equilibradas!</div>`}
   </div>
+  ${incomeCard}
   <div class="card">
     <div class="card-title">Gastos Compartilhados</div>
     ${expenses.filter(t => t.person === 'both').length === 0
