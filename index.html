@@ -405,6 +405,42 @@
     /* Validation shake */
     @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
     .shake { animation: shake .3s ease; }
+    /* Caixinha / Goals */
+    .caixinha-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px; margin-bottom: 10px;
+    }
+    .caixinha-item.complete { border-color: #34d48a55; }
+    .rec-box {
+      background: #6c8eff12; border: 1px solid #6c8eff33;
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      font-size: .78rem; color: var(--text2); margin-top: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .rec-box .rec-val { font-family: var(--font-display); font-weight: 700; color: var(--accent); }
+    .deposit-history { margin-top: 10px; }
+    .deposit-history-item {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: .75rem; color: var(--text3); padding: 4px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .deposit-history-item:last-child { border-bottom: none; }
+    .salary-btn {
+      background: #34d48a18; border: 1px solid #34d48a55;
+      border-radius: 8px; color: var(--green); cursor: pointer;
+      font-size: .78rem; font-weight: 600; padding: 6px 10px;
+      transition: background .2s; white-space: nowrap;
+    }
+    .salary-btn:hover { background: #34d48a28; }
+    .salary-btn:disabled { opacity: .4; cursor: default; }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .section-label {
+      font-family: var(--font-display); font-size: .75rem; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase; color: var(--text3);
+    }
   </style>
 </head>
 <body>
@@ -546,26 +582,30 @@
 <div class="modal-overlay" id="goalModal">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Nova Meta</div>
+    <div class="modal-title" id="goalModalTitle">Nova Meta</div>
+    <div class="type-toggle" id="goalTypeToggle" style="margin-bottom:16px">
+      <button class="active" id="btnGoalTypeMeta" onclick="setGoalType('meta', this)">🎯 Meta com valor</button>
+      <button id="btnGoalTypeCaixinha" onclick="setGoalType('caixinha', this)">🪙 Caixinha livre</button>
+    </div>
     <div class="form-grid">
       <div class="form-group full">
-        <label class="form-label">Nome da meta</label>
+        <label class="form-label">Nome</label>
         <input class="form-input" id="goalName" placeholder="Ex: Viagem para Europa" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Valor total (R$)</label>
-        <input class="form-input" id="goalTarget" type="number" placeholder="0,00" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Já guardado (R$)</label>
-        <input class="form-input" id="goalSaved" type="number" placeholder="0,00" />
       </div>
       <div class="form-group">
         <label class="form-label">Ícone</label>
         <input class="form-input" id="goalIcon" placeholder="✈️" />
       </div>
-      <div class="form-group">
-        <label class="form-label">Prazo</label>
+      <div class="form-group" id="goalSavedGroup">
+        <label class="form-label">Já guardado (R$)</label>
+        <input class="form-input" id="goalSaved" type="number" placeholder="0,00" />
+      </div>
+      <div class="form-group full" id="goalTargetGroup">
+        <label class="form-label">Valor total (R$)</label>
+        <input class="form-input" id="goalTarget" type="number" placeholder="0,00" />
+      </div>
+      <div class="form-group full" id="goalDeadlineGroup">
+        <label class="form-label">Prazo (opcional)</label>
         <input class="form-input" id="goalDeadline" type="month" />
       </div>
     </div>
@@ -735,7 +775,48 @@ function renderDashboard() {
     else dailyInc[day] = (dailyInc[day] || 0) + t.amount;
   });
 
+  // savings recommendation
+  const totalRec = state.goals.reduce((s, g) => { const r = goalRecommendation(g); return s + (r ? r.monthly : 0); }, 0);
+  const availableToSave = balance - totalRec;
+  const salaryAlert = (() => {
+    const alerts = [];
+    if (state.p1income > 0 && !hasSalaryThisMonth('p1')) alerts.push(state.p1name);
+    if (state.p2income > 0 && !hasSalaryThisMonth('p2')) alerts.push(state.p2name);
+    return alerts;
+  })();
+
+  const savingsCard = totalRec > 0.01 ? `
+  <div class="card" style="background:#6c8eff0e;border-color:#6c8eff33;animation-delay:.18s">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+      <div class="card-title" style="margin-bottom:0">💡 Aportes do Mês</div>
+      <span style="font-size:.7rem;color:var(--text3)">para suas metas</span>
+    </div>
+    ${state.goals.filter(g => goalRecommendation(g)).map(g => {
+      const r = goalRecommendation(g);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.85rem">${g.icon || '🎯'} ${g.name}</span>
+        <span style="font-family:var(--font-display);font-weight:700;font-size:.85rem;color:var(--accent)">${fmt(r.monthly)}</span>
+      </div>`;
+    }).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px">
+      <span style="font-size:.82rem;font-weight:600">Total a separar</span>
+      <span style="font-family:var(--font-display);font-weight:800;font-size:1rem;color:var(--accent)">${fmt(totalRec)}</span>
+    </div>
+    ${availableToSave < 0 ? `<div style="font-size:.75rem;color:var(--orange);margin-top:6px">⚠️ Seus gastos superam o que sobra para as metas este mês</div>` : availableToSave > 0 ? `<div style="font-size:.75rem;color:var(--green);margin-top:6px">✅ Sobram ${fmt(availableToSave)} depois dos aportes</div>` : ''}
+  </div>` : '';
+
+  const salaryAlertCard = salaryAlert.length > 0 ? `
+  <div style="background:#ffd16618;border:1px solid #ffd16633;border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:1.1rem">📥</span>
+    <div>
+      <div style="font-size:.82rem;font-weight:600;color:var(--yellow)">Salário não lançado</div>
+      <div style="font-size:.75rem;color:var(--text3)">${salaryAlert.join(' e ')} ainda não lançaram o salário de ${MONTHS_FULL[currentMonth]}</div>
+    </div>
+    <button class="btn-secondary" style="margin-left:auto;padding:6px 10px;font-size:.75rem;white-space:nowrap" onclick="showTab('settings', document.querySelectorAll('.nav-tab')[4])">Lançar</button>
+  </div>` : '';
+
   return `
+  ${salaryAlertCard}
   <div class="summary-grid">
     <div class="summary-item" style="animation-delay:.05s">
       <div class="s-label">Receitas</div>
@@ -754,6 +835,7 @@ function renderDashboard() {
     <div class="card-title">Fluxo do Mês — ${MONTHS_FULL[currentMonth]}</div>
     <div class="chart-wrap"><canvas id="flowChart"></canvas></div>
   </div>
+  ${savingsCard}
   ${sortedCats.length > 0 ? `
   <div class="card" style="animation-delay:.25s">
     <div class="card-title">Por Categoria</div>
@@ -1046,60 +1128,211 @@ function renderSplit() {
 }
 
 // ===================== GOALS =====================
-function renderGoals() {
-  const goals = state.goals;
-  return `
-  <div class="card">
-    <div class="card-title">Metas & Sonhos 🎯</div>
-    ${goals.length === 0
-      ? `<div class="empty-state"><div class="e-icon">🎯</div><p>Nenhuma meta ainda.<br>Toque no + para criar!</p></div>`
-      : goals.map(g => {
-          const pct = Math.min(100, ((g.saved || 0) / g.target * 100));
-          const remaining = g.target - (g.saved || 0);
-          const done = pct >= 100;
-          return `<div class="goal-item${done?' goal-complete':''}">
-            <div class="goal-header">
-              <div class="goal-name">${g.icon || '🎯'} ${g.name}${done?' ✅':''}</div>
-              <div class="goal-pct" style="color:${done?'var(--green)':'var(--accent)'}">${pct.toFixed(0)}%</div>
-            </div>
-            <div class="goal-bar"><div class="goal-bar-fill" style="width:${pct}%;background:${done?'var(--green)':'var(--accent)'}"></div></div>
-            <div class="goal-vals">
-              <span>Guardado: <strong style="color:var(--text)">${fmt(g.saved || 0)}</strong></span>
-              <span>Meta: ${fmt(g.target)}</span>
-            </div>
-            ${g.deadline && !done ? `<div style="font-size:.75rem;color:var(--text3);margin-top:4px">📅 Prazo: ${g.deadline} · Faltam ${fmt(Math.max(0, remaining))}</div>` : ''}
-            ${done ? '' : `<div style="display:flex;gap:8px;margin-top:10px">
-              <button class="btn-secondary" style="flex:1;padding:8px" onclick="addToGoal('${g.id}')">💰 Depositar</button>
-              <button class="btn-danger" style="padding:8px 14px" onclick="deleteGoal('${g.id}')">🗑</button>
-            </div>`}
-            ${done ? `<div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn-danger" style="padding:6px 12px;font-size:.8rem" onclick="deleteGoal('${g.id}')">🗑 Remover</button></div>` : ''}
-          </div>`;
-        }).join('')
-    }
+let currentGoalType = 'meta';
+function setGoalType(type, btn) {
+  currentGoalType = type;
+  document.querySelectorAll('#goalTypeToggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const isCaixinha = type === 'caixinha';
+  document.getElementById('goalTargetGroup').style.display = isCaixinha ? 'none' : '';
+  document.getElementById('goalDeadlineGroup').style.display = isCaixinha ? 'none' : '';
+}
+
+function goalRecommendation(g) {
+  if (g.type === 'caixinha' || !g.deadline || !g.target) return null;
+  const now = new Date();
+  const [dy, dm] = g.deadline.split('-').map(Number);
+  const monthsLeft = (dy - now.getFullYear()) * 12 + (dm - (now.getMonth() + 1));
+  if (monthsLeft <= 0) return null;
+  const remaining = Math.max(0, (g.target || 0) - (g.saved || 0));
+  const monthly = remaining / monthsLeft;
+  return { monthly, monthsLeft };
+}
+
+function renderGoalCard(g) {
+  const saved = g.saved || 0;
+  const isCaixinha = g.type === 'caixinha';
+  const pct = (!isCaixinha && g.target > 0) ? Math.min(100, saved / g.target * 100) : null;
+  const done = pct !== null && pct >= 100;
+  const rec = goalRecommendation(g);
+  const deposits = (g.deposits || []).slice(-3).reverse();
+
+  const progressBar = pct !== null ? `
+    <div class="goal-bar" style="margin:10px 0 4px">
+      <div class="goal-bar-fill" style="width:${pct}%;background:${done?'var(--green)':'var(--accent)'}"></div>
+    </div>
+    <div class="goal-vals">
+      <span>Guardado: <strong style="color:var(--text)">${fmt(saved)}</strong></span>
+      <span>${done ? '✅ Concluído!' : `Meta: ${fmt(g.target)}`}</span>
+    </div>` : `
+    <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;margin:8px 0 2px;color:var(--cyan)">${fmt(saved)}</div>
+    <div style="font-size:.75rem;color:var(--text3)">guardado na caixinha</div>`;
+
+  const recBox = rec ? `
+    <div class="rec-box">
+      💡 Deposite <span class="rec-val">${fmt(rec.monthly)}/mês</span> para atingir em ${rec.monthsLeft} mes${rec.monthsLeft > 1 ? 'es' : ''}
+    </div>` : '';
+
+  const historyHtml = deposits.length > 0 ? `
+    <div class="deposit-history">
+      <div style="font-size:.7rem;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Últimos depósitos</div>
+      ${deposits.map(d => `
+        <div class="deposit-history-item">
+          <span>${new Date(d.date + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit',month:'short'})}</span>
+          <span style="color:var(--green);font-weight:600">+${fmt(d.amount)}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  return `<div class="caixinha-item${done ? ' complete' : ''}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:1.3rem;margin-bottom:2px">${g.icon || (isCaixinha ? '🪙' : '🎯')}</div>
+        <div style="font-weight:600;font-size:.95rem">${g.name}</div>
+        ${g.deadline && !done ? `<div style="font-size:.72rem;color:var(--text3);margin-top:2px">📅 ${g.deadline}</div>` : ''}
+      </div>
+      ${pct !== null ? `<div style="font-family:var(--font-display);font-size:1.2rem;font-weight:800;color:${done?'var(--green)':'var(--accent)'}">${pct.toFixed(0)}%</div>` : ''}
+    </div>
+    ${progressBar}
+    ${recBox}
+    ${historyHtml}
+    ${!done ? `<div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-secondary" style="flex:1;padding:8px;font-size:.85rem" onclick="addToGoal('${g.id}')">💰 Depositar</button>
+      ${saved > 0 ? `<button class="btn-secondary" style="padding:8px 12px;font-size:.85rem" onclick="withdrawFromGoal('${g.id}')">↩ Retirar</button>` : ''}
+      <button class="btn-danger" style="padding:8px 12px" onclick="deleteGoal('${g.id}')">🗑</button>
+    </div>` : `<div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button class="btn-danger" style="padding:6px 12px;font-size:.8rem" onclick="deleteGoal('${g.id}')">🗑 Remover</button>
+    </div>`}
   </div>`;
+}
+
+function renderGoals() {
+  const metas = state.goals.filter(g => g.type !== 'caixinha');
+  const caixinhas = state.goals.filter(g => g.type === 'caixinha');
+
+  // Total recomendado entre todas as metas
+  const totalRec = state.goals.reduce((s, g) => {
+    const r = goalRecommendation(g);
+    return s + (r ? r.monthly : 0);
+  }, 0);
+
+  const recSummary = totalRec > 0.01 ? `
+  <div class="card" style="background:#6c8eff0e;border-color:#6c8eff33">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:1.5rem">💡</div>
+      <div>
+        <div style="font-size:.8rem;color:var(--text3);margin-bottom:2px">Aporte mensal recomendado</div>
+        <div style="font-family:var(--font-display);font-size:1.2rem;font-weight:800;color:var(--accent)">${fmt(totalRec)}/mês</div>
+        <div style="font-size:.75rem;color:var(--text3);margin-top:2px">para atingir todas as metas no prazo</div>
+      </div>
+    </div>
+  </div>` : '';
+
+  const metasHtml = metas.length === 0
+    ? `<div class="empty-state" style="padding:20px"><div class="e-icon">🎯</div><p>Nenhuma meta ainda.<br>Toque no + para criar!</p></div>`
+    : metas.map(g => renderGoalCard(g)).join('');
+
+  const caixinhasHtml = caixinhas.length === 0
+    ? `<div style="font-size:.85rem;color:var(--text3);padding:12px 0 4px">Nenhuma caixinha. Toque no + para criar uma!</div>`
+    : caixinhas.map(g => renderGoalCard(g)).join('');
+
+  return `
+  ${recSummary}
+  <div class="card">
+    <div class="section-header">
+      <div class="section-label">🎯 Metas</div>
+    </div>
+    ${metasHtml}
+  </div>
+  <div class="card">
+    <div class="section-header">
+      <div class="section-label">🪙 Caixinhas</div>
+    </div>
+    ${caixinhasHtml}
+  </div>`;
+}
+
+// ===================== SALARY HELPERS =====================
+function hasSalaryThisMonth(person) {
+  const y = currentYear, m = currentMonth;
+  return state.transactions.some(t =>
+    t.type === 'income' && t.person === person &&
+    t.category === 'salario' && t._autoSalary === true &&
+    new Date(t.date + 'T12:00:00').getFullYear() === y &&
+    new Date(t.date + 'T12:00:00').getMonth() === m
+  );
+}
+function launchSalary(person) {
+  const amount = person === 'p1' ? state.p1income : state.p2income;
+  if (!amount || amount <= 0) return;
+  if (hasSalaryThisMonth(person)) return;
+  const date = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
+  state.transactions.push({
+    id: uid(),
+    description: `Salário ${MONTHS_FULL[currentMonth]} ${currentYear}`,
+    amount, date,
+    category: 'salario',
+    payment: 'ted',
+    type: 'income',
+    person,
+    splitMode: null, splitPct: null,
+    _autoSalary: true,
+    recurring: true,
+  });
+  saveState();
+  renderCurrentTab();
 }
 
 // ===================== SETTINGS =====================
 function renderSettings() {
+  const p1done = hasSalaryThisMonth('p1');
+  const p2done = hasSalaryThisMonth('p2');
+  const monthName = MONTHS_FULL[currentMonth];
   return `
   <div class="card">
     <div class="card-title">Perfil do Casal</div>
     <div class="setting-row">
-      <div><div class="setting-label" style="color:var(--p1)">● Pessoa 1 (Você)</div></div>
+      <div><div class="setting-label" style="color:var(--p1)">● ${state.p1name}</div></div>
       <input class="setting-input" id="sP1name" value="${state.p1name}" onchange="saveSetting('p1name', this.value)" />
     </div>
     <div class="setting-row">
-      <div><div class="setting-label">Renda mensal de ${state.p1name}</div></div>
-      <input class="setting-input" id="sP1income" type="number" value="${state.p1income}" onchange="saveSetting('p1income', +this.value)" placeholder="0,00" />
+      <div>
+        <div class="setting-label">Renda de ${state.p1name}</div>
+        <div class="setting-sub">Salário mensal para divisão proporcional</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input class="setting-input" id="sP1income" type="number" value="${state.p1income}" onchange="saveSetting('p1income', +this.value)" placeholder="0,00" />
+      </div>
     </div>
+    ${state.p1income > 0 ? `<div class="setting-row" style="padding:8px 0">
+      <div>
+        <div class="setting-label" style="font-size:.82rem">Lançar como receita em ${monthName}</div>
+        <div class="setting-sub">${p1done ? '✅ Já lançado este mês' : 'Cria um lançamento de receita automaticamente'}</div>
+      </div>
+      <button class="salary-btn" onclick="launchSalary('p1');renderCurrentTab()" ${p1done ? 'disabled' : ''}>
+        ${p1done ? '✓ Lançado' : '📥 Lançar salário'}
+      </button>
+    </div>` : ''}
+    <div class="divider"></div>
     <div class="setting-row">
-      <div><div class="setting-label" style="color:var(--p2)">● Pessoa 2 (Parceira/o)</div></div>
+      <div><div class="setting-label" style="color:var(--p2)">● ${state.p2name}</div></div>
       <input class="setting-input" id="sP2name" value="${state.p2name}" onchange="saveSetting('p2name', this.value)" />
     </div>
     <div class="setting-row">
-      <div><div class="setting-label">Renda mensal de ${state.p2name}</div></div>
+      <div>
+        <div class="setting-label">Renda de ${state.p2name}</div>
+        <div class="setting-sub">Salário mensal para divisão proporcional</div>
+      </div>
       <input class="setting-input" id="sP2income" type="number" value="${state.p2income}" onchange="saveSetting('p2income', +this.value)" placeholder="0,00" />
     </div>
+    ${state.p2income > 0 ? `<div class="setting-row" style="padding:8px 0">
+      <div>
+        <div class="setting-label" style="font-size:.82rem">Lançar como receita em ${monthName}</div>
+        <div class="setting-sub">${p2done ? '✅ Já lançado este mês' : 'Cria um lançamento de receita automaticamente'}</div>
+      </div>
+      <button class="salary-btn" onclick="launchSalary('p2');renderCurrentTab()" ${p2done ? 'disabled' : ''}>
+        ${p2done ? '✓ Lançado' : '📥 Lançar salário'}
+      </button>
+    </div>` : ''}
   </div>
   <div class="card">
     <div class="card-title">Segurança</div>
@@ -1264,32 +1497,59 @@ function closeModal() { document.getElementById('addModal').classList.remove('op
 
 // ===================== GOAL MODAL =====================
 function openGoalModal() {
+  currentGoalType = 'meta';
   document.getElementById('goalName').value = '';
   document.getElementById('goalTarget').value = '';
   document.getElementById('goalSaved').value = '';
   document.getElementById('goalIcon').value = '';
   document.getElementById('goalDeadline').value = '';
+  document.getElementById('btnGoalTypeMeta').classList.add('active');
+  document.getElementById('btnGoalTypeCaixinha').classList.remove('active');
+  document.getElementById('goalTargetGroup').style.display = '';
+  document.getElementById('goalDeadlineGroup').style.display = '';
   openModal('goalModal');
 }
 function closeGoalModal() { document.getElementById('goalModal').classList.remove('open'); }
 function saveGoal() {
   const name = document.getElementById('goalName').value.trim();
-  const target = parseFloat(document.getElementById('goalTarget').value);
-  if (!name || !target) { alert('Preencha nome e valor.'); return; }
-  state.goals.push({
-    id: uid(), name, target,
-    saved: parseFloat(document.getElementById('goalSaved').value) || 0,
-    icon: document.getElementById('goalIcon').value || '🎯',
-    deadline: document.getElementById('goalDeadline').value,
-  });
+  if (!name) {
+    const el = document.getElementById('goalName');
+    el.style.borderColor = 'var(--red)'; el.classList.add('shake');
+    setTimeout(() => el.classList.remove('shake'), 400);
+    return;
+  }
+  const isCaixinha = currentGoalType === 'caixinha';
+  const targetVal = parseFloat(document.getElementById('goalTarget').value);
+  if (!isCaixinha && (!targetVal || targetVal <= 0)) {
+    const el = document.getElementById('goalTarget');
+    el.style.borderColor = 'var(--red)'; el.classList.add('shake');
+    setTimeout(() => el.classList.remove('shake'), 400);
+    return;
+  }
+  const initSaved = parseFloat(document.getElementById('goalSaved').value) || 0;
+  const newGoal = {
+    id: uid(), name,
+    type: currentGoalType,
+    target: isCaixinha ? null : targetVal,
+    saved: initSaved,
+    icon: document.getElementById('goalIcon').value || (isCaixinha ? '🪙' : '🎯'),
+    deadline: isCaixinha ? null : (document.getElementById('goalDeadline').value || null),
+    deposits: initSaved > 0 ? [{ date: new Date().toISOString().slice(0,10), amount: initSaved }] : [],
+  };
+  state.goals.push(newGoal);
   saveState(); closeGoalModal(); renderCurrentTab();
 }
 function addToGoal(id) {
   const g = state.goals.find(x => x.id === id);
   if (!g) return;
   depositingGoalId = id;
-  document.getElementById('depositGoalName').textContent = `${g.icon || '🎯'} ${g.name} — ${fmt(g.saved || 0)} de ${fmt(g.target)}`;
+  const saved = g.saved || 0;
+  const label = g.type === 'caixinha'
+    ? `${g.icon || '🪙'} ${g.name} — ${fmt(saved)} guardado`
+    : `${g.icon || '🎯'} ${g.name} — ${fmt(saved)} de ${fmt(g.target)}`;
+  document.getElementById('depositGoalName').textContent = label;
   document.getElementById('depositAmount').value = '';
+  document.getElementById('depositAmount').style.borderColor = '';
   openModal('depositModal');
   setTimeout(() => document.getElementById('depositAmount').focus(), 100);
 }
@@ -1308,10 +1568,49 @@ function confirmDeposit() {
   }
   el.style.borderColor = '';
   const g = state.goals.find(x => x.id === depositingGoalId);
-  if (g) { g.saved = (g.saved || 0) + amount; saveState(); closeDepositModal(); renderCurrentTab(); }
+  if (g) {
+    g.saved = (g.saved || 0) + amount;
+    if (!g.deposits) g.deposits = [];
+    g.deposits.push({ date: new Date().toISOString().slice(0,10), amount });
+    saveState(); closeDepositModal(); renderCurrentTab();
+  }
+}
+function withdrawFromGoal(id) {
+  const g = state.goals.find(x => x.id === id);
+  if (!g || !g.saved) return;
+  depositingGoalId = id;
+  document.getElementById('depositGoalName').textContent = `↩ Retirar de: ${g.icon || ''} ${g.name} (disponível: ${fmt(g.saved)})`;
+  document.getElementById('depositAmount').value = '';
+  document.getElementById('depositAmount').style.borderColor = '';
+  // Reuse deposit modal but override confirm
+  const modal = document.getElementById('depositModal');
+  modal.querySelector('.modal-title').textContent = '↩ Retirar da Caixinha';
+  modal.querySelector('.btn-primary').onclick = confirmWithdraw;
+  openModal('depositModal');
+  setTimeout(() => document.getElementById('depositAmount').focus(), 100);
+}
+function confirmWithdraw() {
+  const el = document.getElementById('depositAmount');
+  const amount = parseFloat(el.value);
+  const g = state.goals.find(x => x.id === depositingGoalId);
+  if (!amount || isNaN(amount) || amount <= 0 || !g) {
+    el.style.borderColor = 'var(--red)'; el.classList.add('shake');
+    setTimeout(() => el.classList.remove('shake'), 400);
+    return;
+  }
+  if (amount > g.saved) { el.style.borderColor = 'var(--red)'; return; }
+  g.saved = (g.saved || 0) - amount;
+  if (!g.deposits) g.deposits = [];
+  g.deposits.push({ date: new Date().toISOString().slice(0,10), amount: -amount });
+  saveState();
+  // restore modal
+  document.getElementById('depositModal').querySelector('.modal-title').textContent = '💰 Depositar na Meta';
+  document.getElementById('depositModal').querySelector('.btn-primary').onclick = confirmDeposit;
+  closeDepositModal();
+  renderCurrentTab();
 }
 function deleteGoal(id) {
-  if (!confirm('Excluir esta meta?')) return;
+  if (!confirm('Excluir esta meta/caixinha?')) return;
   state.goals = state.goals.filter(g => g.id !== id);
   saveState(); renderCurrentTab();
 }
