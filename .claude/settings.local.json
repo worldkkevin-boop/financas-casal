@@ -3,7 +3,16 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(git commit -m 'feat: divisao proporcional a renda na aba split *)",
+      "Bash(node -e ' *)",
+      "Bash(git commit -m 'feat: salario automatico, caixinhas e recomendacoes de aporte *)",
+      "Bash(node --experimental-vm-modules /tmp/test.mjs)",
+      "Bash(node /tmp/test.mjs)",
+      "Bash(node \"d:/IA/Finança/_test.js\")",
+      "Bash(node \"_test.js\")",
+      "Bash(rm \"_test.js\")",
+      "Bash(git commit -m 'feat: reescrita completa com Firebase, design evolution e novas features *)"
     ]
   }
 }
