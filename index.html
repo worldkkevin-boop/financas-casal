@@ -306,6 +306,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   </div>
 </div>
 
+<!-- JS error banner (visível quando ocorrer erro) -->
+<div id="jsErrorBanner" style="display:none;position:fixed;top:12px;left:12px;right:12px;z-index:10000;background:#ff4d4f;color:#fff;padding:10px 14px;border-radius:8px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.45);">Erro JS</div>
+
 <div id="app">
   <header class="topbar">
     <div class="topbar-logo">💰 Nós <span>Dois</span></div>
@@ -1496,6 +1499,19 @@ document.querySelectorAll('.modal-overlay').forEach(el=>{
 if ('serviceWorker' in navigator) {
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
+
+  // Show JS errors on screen to help debugging (will be visible if scripts fail)
+  window.addEventListener('error', (e)=>{
+    try{
+      const b=document.getElementById('jsErrorBanner');
+      if (b){ b.textContent = 'JS Error: '+(e.message||e.toString()); b.style.display='block'; }
+    }catch(_){ }
+    console.error('JS Error', e);
+  });
+  window.addEventListener('unhandledrejection', (ev)=>{
+    try{ const b=document.getElementById('jsErrorBanner'); if (b){ b.textContent = 'Promise Rejection: '+(ev.reason&&ev.reason.message?ev.reason.message:ev.reason); b.style.display='block'; } }catch(_){ }
+    console.error('Unhandled Rejection', ev);
+  });
 
 // INIT ON LOAD
 window.addEventListener('load', () => {
