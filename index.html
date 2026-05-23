@@ -55,7 +55,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .pin-key{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);cursor:pointer;font-family:var(--font-d);font-size:1.25rem;font-weight:700;padding:15px;transition:all .12s;-webkit-tap-highlight-color:transparent;user-select:none}
 .pin-key:hover{background:var(--surface3)}.pin-key:active{transform:scale(.9)}
 .pin-hint{font-size:.74rem;color:var(--text3);text-align:center}
-#pairScreen{display:none;flex-direction:column;align-items:center;gap:12px;width:min(100%,340px);padding:22px 18px;background:var(--surface);border:1px solid var(--border2);border-radius:22px;box-shadow:0 18px 40px rgba(0,0,0,.35);text-align:center}
+#pairScreen{display:none;flex-direction:column;align-items:center;gap:12px;width:min(100%,340px);padding:22px 18px;background:var(--surface);border:1px solid var(--border2);border-radius:22px;box-shadow:0 18px 40px rgba(0,0,0,.35);text-align:center;z-index:1001}
 
 /* APP */
 #app{display:none;min-height:100dvh;flex-direction:column}
@@ -300,7 +300,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <button class="btn-ghost" onclick="copyCode()" style="color:var(--accent)">📋 Copiar código</button>
     <div class="divider" style="width:100%"></div>
     <p style="font-size:.8rem;color:var(--text2)">Ou entre com o código dele/a:</p>
-    <input class="form-input" id="pairCodeInput" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;text-align:center;letter-spacing:.12em;font-size:1.2rem;font-family:var(--font-d)"/>
+    <input class="form-input" id="pairCodeInput" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;text-align:center;letter-spacing:.12em;font-size:1.2rem;font-family:var(--font-d);background:var(--surface2);color:var(--text);border:1.5px solid var(--border2)"/>
     <button class="btn-primary" style="width:100%" onclick="joinWithCode()">Entrar com este código</button>
     <button class="btn-ghost" onclick="hidePairScreen()">← Voltar</button>
   </div>
@@ -613,7 +613,13 @@ function showPairScreen() {
   if (!state.coupleId) { state.coupleId=generateCode(); saveState(); }
   document.getElementById('myCode').textContent=state.coupleId;
   document.getElementById('pairCodeInput').value='';
+  // focus the input to open keyboard on mobile
+  setTimeout(()=>{
+    const inp = document.getElementById('pairCodeInput');
+    try { inp.focus(); } catch(e){}
+  },200);
 }
+
 function hidePairScreen() {
   document.getElementById('pairScreen').style.display='none';
   document.getElementById('pinScreen').style.display='flex';
