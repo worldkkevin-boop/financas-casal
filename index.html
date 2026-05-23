@@ -298,17 +298,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <p class="pin-hint" id="pinHint">PIN padrão: <strong>1234</strong></p>
     <button class="btn-ghost" onclick="showPairScreen()" style="margin-top:4px">🔗 Conectar com parceiro/a</button>
   </div>
-  <div id="pairScreen">
-    <div style="font-family:var(--font-d);font-size:1.1rem;font-weight:700">🔗 Conectar casal</div>
-    <p style="font-size:.82rem;color:var(--text2)">Compartilhe seu código ou cole o do parceiro/a</p>
-    <div style="font-family:var(--font-d);font-size:1.8rem;font-weight:800;letter-spacing:.15em;color:var(--accent);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px 20px;cursor:default;text-align:center" id="myCode"></div>
-    <button class="btn-ghost" onclick="copyCode()" style="color:var(--accent)">📋 Copiar código</button>
-    <div class="divider" style="width:100%"></div>
-    <p style="font-size:.8rem;color:var(--text2)">Ou entre com o código dele/a:</p>
-    <input class="form-input" id="pairCodeInput" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;text-align:center;letter-spacing:.12em;font-size:1.2rem;font-family:var(--font-d);background:var(--surface2);color:var(--text);border:1.5px solid var(--border2)"/>
-    <button class="btn-primary" style="width:100%" onclick="joinWithCode()">Entrar com este código</button>
-    <button class="btn-ghost" onclick="hidePairScreen()">← Voltar</button>
-  </div>
+</div>
+
+<div id="pairScreen">
+  <div style="font-family:var(--font-d);font-size:1.1rem;font-weight:700">🔗 Conectar casal</div>
+  <p style="font-size:.82rem;color:var(--text2)">Compartilhe seu código ou cole o do parceiro/a</p>
+  <div style="font-family:var(--font-d);font-size:1.8rem;font-weight:800;letter-spacing:.15em;color:var(--accent);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px 20px;cursor:default;text-align:center" id="myCode"></div>
+  <button class="btn-ghost" onclick="copyCode()" style="color:var(--accent)">📋 Copiar código</button>
+  <div class="divider" style="width:100%"></div>
+  <p style="font-size:.8rem;color:var(--text2)">Ou entre com o código dele/a:</p>
+  <input class="form-input" id="pairCodeInput" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;text-align:center;letter-spacing:.12em;font-size:1.2rem;font-family:var(--font-d);background:var(--surface2);color:var(--text);border:1.5px solid var(--border2)"/>
+  <button class="btn-primary" style="width:100%" onclick="joinWithCode()">Entrar com este código</button>
+  <button class="btn-ghost" onclick="hidePairScreen()">← Voltar</button>
 </div>
 
 <!-- JS error banner (visível quando ocorrer erro) -->
@@ -1366,7 +1367,7 @@ function renderSettings() {
     <div class="card-title">Sincronização ${fbStatus}</div>
     <div class="setting-row"><div><div class="setting-label">Código do casal</div><div class="setting-sub">Compartilhe com seu parceiro/a</div></div>${coupleCode}</div>
     <div class="setting-row"><div><div class="setting-label">Conectar parceiro/a</div><div class="setting-sub">Ambos usarão os mesmos dados</div></div>
-      <button class="btn-ghost" style="color:var(--accent)" onclick="document.getElementById('splash').style.display='flex';document.getElementById('app').classList.remove('visible');showPairScreen()">🔗 Parear</button>
+      <button class="btn-ghost" style="color:var(--accent)" onclick="showPairScreen()">🔗 Parear</button>
     </div>
     ${!USE_FIREBASE?'<div style="font-size:.76rem;color:var(--text3);margin-top:8px;background:var(--surface2);border-radius:var(--radius-xs);padding:10px">Para sincronizar em tempo real, configure o Firebase. Veja o arquivo FIREBASE_SETUP.md incluído no projeto.</div>':''}
   </div>
