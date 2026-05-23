@@ -627,7 +627,7 @@ function showPairScreen() {
   pair.style.setProperty('position','fixed','important');
   pair.style.setProperty('z-index','2147483647','important');
   pair.style.setProperty('background','#fff','important');
-  const ds = document.getElementById('debugStatus'); if (ds) { ds.style.display='block'; ds.textContent = 'DEBUG: showPairScreen clicked'; }
+  const ds = document.getElementById('debugStatus'); if (ds) { ds.textContent = 'DEBUG: showPairScreen clicked'; }
   if (!state.coupleId) { state.coupleId=generateCode(); saveState(); }
   document.getElementById('myCode').textContent=state.coupleId;
   document.getElementById('pairCodeInput').value='';
