@@ -1367,8 +1367,22 @@ function importData(e) {
   r.onload=ev=>{try{const data=JSON.parse(ev.target.result);if(confirm('Substituir todos os dados?')){state=data;saveState();location.reload();}}catch{showToast('Arquivo inválido','error');}};
   r.readAsText(file);
 }
-function clearData() {
-  if (confirm('Apagar TODOS os dados? Isso é irreversível!')) { localStorage.removeItem('nosDoiFinancas'); location.reload(); }
+async function clearData() {
+  if (!confirm('Apagar TODOS os dados? Isso é irreversível!')) return;
+  // If using Firebase and connected to a couple doc, delete it remotely too
+  try {
+    if (USE_FIREBASE && db && state.coupleId) {
+      await getCoupleRef().delete();
+      showToast('🗑 Dados removidos do servidor','success');
+    }
+  } catch(e) {
+    console.error('Erro ao apagar no Firebase', e);
+    showToast('Erro ao apagar dados remotos','error');
+  }
+  // Clear local data and reload
+  localStorage.removeItem('nosDoiFinancas');
+  localStorage.removeItem('nosDoisUser');
+  location.reload();
 }
 
 // ============================================================
