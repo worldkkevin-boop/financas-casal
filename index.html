@@ -482,6 +482,23 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
         console.log('FCM token', token);
       }).catch(() => {});
     }
+    messaging.onMessage(payload => {
+      const notification = payload.notification || {};
+      const title = notification.title || 'Nós Dois 💰';
+      const body = notification.body || 'Nova atualização disponível';
+      const icon = notification.icon || './icon-192.png';
+      if ('Notification' in window && Notification.permission === 'granted') {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (reg) {
+            reg.showNotification(title, { body, icon, data: payload.data });
+          } else {
+            new Notification(title, { body, icon, data: payload.data });
+          }
+        }).catch(() => {
+          new Notification(title, { body, icon, data: payload.data });
+        });
+      }
+    });
   } catch (e) {
     console.warn('Firebase messaging not initialized', e);
   }
