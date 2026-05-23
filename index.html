@@ -529,7 +529,10 @@ async function pushToFirebase() {
       budgets:state.budgets||{}, transactions:state.transactions, goals:state.goals,
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     },{merge:true});
-  } catch(e){}
+  } catch(e){
+    console.error('Erro ao salvar no Firebase', e);
+    showToast('Erro ao salvar no Firebase','error');
+  }
 }
 function subscribeFirebase() {
   if (!USE_FIREBASE||!db||!state.coupleId) return;
@@ -560,18 +563,25 @@ function getCurrentUser() { return localStorage.getItem('nosDoisUser')||'p1'; }
 async function initFirebase(coupleId) {
   state.coupleId = coupleId;
   localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
-  const doc = await getCoupleRef().get();
-  if (!doc.exists) { await pushToFirebase(); showToast('✅ Casal criado! Compartilhe o código','success'); }
-  else {
-    const data = doc.data();
-    if (data.settings) Object.assign(state, data.settings);
-    if (data.budgets) state.budgets = data.budgets;
-    if (data.transactions) state.transactions = data.transactions;
-    if (data.goals) state.goals = data.goals;
-    localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
-    showToast('🔗 Conectado! Dados sincronizados.','success');
+  try {
+    const doc = await getCoupleRef().get();
+    if (!doc.exists) {
+      await pushToFirebase();
+      showToast('✅ Casal criado! Compartilhe o código','success');
+    } else {
+      const data = doc.data();
+      if (data.settings) Object.assign(state, data.settings);
+      if (data.budgets) state.budgets = data.budgets;
+      if (data.transactions) state.transactions = data.transactions;
+      if (data.goals) state.goals = data.goals;
+      localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
+      showToast('🔗 Conectado! Dados sincronizados.','success');
+    }
+    subscribeFirebase();
+  } catch (e) {
+    console.error('Firebase init error', e);
+    showToast('Erro Firebase: ' + (e.message||e), 'error');
   }
-  subscribeFirebase();
 }
 
 // PIN / AUTH
@@ -610,12 +620,15 @@ function hidePairScreen() {
 }
 function generateCode() { return Math.random().toString(36).toUpperCase().slice(2,8); }
 function copyCode() { navigator.clipboard.writeText(state.coupleId||'').then(()=>showToast('📋 Código copiado!','success')); }
-function joinWithCode() {
+async function joinWithCode() {
   const code = document.getElementById('pairCodeInput').value.trim().toUpperCase();
   if (code.length<4) { showToast('Digite um código válido','error'); return; }
   localStorage.setItem('nosDoisUser','p2');
-  if (USE_FIREBASE&&db) initFirebase(code);
-  else { state.coupleId=code; saveState(); showToast('Código salvo (sem Firebase ativo)','info'); }
+  if (USE_FIREBASE&&db) {
+    await initFirebase(code);
+  } else {
+    state.coupleId=code; saveState(); showToast('Código salvo (sem Firebase ativo)','info');
+  }
   hidePairScreen();
 }
 

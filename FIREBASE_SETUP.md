@@ -49,7 +49,7 @@ const firebaseConfig = {
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /couples/{coupleId}/{document=**} {
+    match /couples/{coupleId} {
       allow read, write: if true;
     }
   }
