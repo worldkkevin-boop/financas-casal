@@ -270,8 +270,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 </head>
 <body>
 <div id="toastContainer"></div>
-<div id="debugStatus" style="display:none;position:fixed;top:0;left:0;right:0;z-index:10002;background:#111;border-bottom:1px solid #333;color:#fff;padding:9px 12px;font-size:.92rem;text-align:center;pointer-events:none;">DEBUG: page loaded</div>
-
 <div id="splash">
   <div class="splash-glow"></div>
   <div class="splash-logo">💰 Nós <span>Dois</span></div>
@@ -627,7 +625,6 @@ function showPairScreen() {
   pair.style.setProperty('position','fixed','important');
   pair.style.setProperty('z-index','2147483647','important');
   pair.style.setProperty('background','#fff','important');
-  const ds = document.getElementById('debugStatus'); if (ds) { ds.textContent = 'DEBUG: showPairScreen clicked'; }
   if (!state.coupleId) { state.coupleId=generateCode(); saveState(); }
   document.getElementById('myCode').textContent=state.coupleId;
   document.getElementById('pairCodeInput').value='';
@@ -643,7 +640,7 @@ function hidePairScreen() {
   pair.classList.remove('open');
   pair.style.display='none';
   document.getElementById('pinScreen').style.display='flex';
-  const ds = document.getElementById('debugStatus'); if (ds) { ds.textContent = 'DEBUG: hidePairScreen clicked'; ds.style.display='none'; }
+  document.getElementById('pinScreen').style.display='flex';
 }
 function generateCode() { return Math.random().toString(36).toUpperCase().slice(2,8); }
 function copyCode() { navigator.clipboard.writeText(state.coupleId||'').then(()=>showToast('📋 Código copiado!','success')); }
@@ -1519,8 +1516,6 @@ if ('serviceWorker' in navigator) {
   if (isLocalDebug) {
     navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
     if ('caches' in window) caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k))));
-    const ds = document.getElementById('debugStatus');
-    if (ds) ds.textContent = 'DEBUG: local mode - service worker disabled';
   } else {
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
   }
@@ -1541,8 +1536,6 @@ if ('serviceWorker' in navigator) {
 
 // INIT ON LOAD
 window.addEventListener('load', () => {
-  const ds = document.getElementById('debugStatus');
-  if (ds) ds.textContent = 'DEBUG: app script loaded';
   applyTheme(state.theme||'dark');
   if (USE_FIREBASE && state.coupleId) subscribeFirebase();
 });
