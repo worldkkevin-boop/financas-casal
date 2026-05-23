@@ -135,7 +135,21 @@ Para notificações **com o app fechado**, você precisa habilitar Cloud Messagi
 
 1. No Firebase Console: **Cloud Messaging**
 2. Gere um par de chaves VAPID em: **Configurações do projeto → Cloud Messaging → Certificados push da Web**
-3. Copie a chave pública e cole no app (campo `vapidKey` — instrução no código)
+3. Copie a chave pública e cole no app no campo `vapidKey` do objeto `FIREBASE_CONFIG`.
+
+Exemplo:
+
+```js
+const FIREBASE_CONFIG = {
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "...",
+  vapidKey: "BGcwVBhoXXsE_fwRYlfdxkI5HRukuDo06eYj6y-3gx8NSJ_gDHWbdANLWeAISyOpWVDOLXal3DaQ7BYJHJ-hddI"
+};
+```
 
 ---
 

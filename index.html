@@ -464,15 +464,27 @@ const FIREBASE_CONFIG = {
   projectId: "nos-dois-financas",
   storageBucket: "nos-dois-financas.firebasestorage.app",
   messagingSenderId: "211174485968",
-  appId: "1:211174485968:web:8572d6384292eac6cb53d5"
+  appId: "1:211174485968:web:8572d6384292eac6cb53d5",
+  vapidKey: "BGcwVBhoXXsE_fwRYlfdxkI5HRukuDo06eYj6y-3gx8NSJ_gDHWbdANLWeAISyOpWVDOLXal3DaQ7BYJHJ-hddI"
 };
 const USE_FIREBASE = FIREBASE_CONFIG.apiKey.length > 0;
 let db = null;
 let unsubscribers = [];
+let messaging = null;
 if (USE_FIREBASE && typeof firebase !== 'undefined') {
   firebase.initializeApp(FIREBASE_CONFIG);
   db = firebase.firestore();
   db.enablePersistence().catch(() => {});
+  try {
+    messaging = firebase.messaging();
+    if (FIREBASE_CONFIG.vapidKey) {
+      messaging.getToken({ vapidKey: FIREBASE_CONFIG.vapidKey }).then(token => {
+        console.log('FCM token', token);
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Firebase messaging not initialized', e);
+  }
 }
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
