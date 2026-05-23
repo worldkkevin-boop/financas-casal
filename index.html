@@ -56,7 +56,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .pin-key{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);cursor:pointer;font-family:var(--font-d);font-size:1.25rem;font-weight:700;padding:15px;transition:all .12s;-webkit-tap-highlight-color:transparent;user-select:none}
 .pin-key:hover{background:var(--surface3)}.pin-key:active{transform:scale(.9)}
 .pin-hint{font-size:.74rem;color:var(--text3);text-align:center}
-#pairScreen{display:none !important;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);flex-direction:column;align-items:center;gap:14px;width:min(100%,420px);max-width:92vw;min-height:320px;padding:26px 22px;background:rgba(255,255,255,.98) !important;border:3px solid #ff4d4f !important;border-radius:28px;box-shadow:0 30px 70px rgba(0,0,0,.75) !important;text-align:center;z-index:2147483647 !important;outline:3px solid rgba(255,77,79,.8) !important;color:#000 !important;}#pairScreen *{color:#000 !important;background:transparent !important;}
+#pairScreen{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);flex-direction:column;align-items:center;gap:14px;width:min(100%,420px);max-width:92vw;min-height:320px;padding:26px 22px;background:rgba(255,255,255,.98) !important;border:3px solid #ff4d4f !important;border-radius:28px;box-shadow:0 30px 70px rgba(0,0,0,.75) !important;text-align:center;z-index:2147483647 !important;outline:3px solid rgba(255,77,79,.8) !important;color:#000 !important;}#pairScreen *{color:#000 !important;background:transparent !important;}
 
 
 /* APP */
@@ -616,7 +616,7 @@ function tryLogin() {
 function showPairScreen() {
   document.getElementById('pinScreen').style.display='none';
   const pair = document.getElementById('pairScreen');
-  pair.style.display='flex';
+  pair.style.setProperty('display','flex','important');
   pair.style.visibility='visible';
   pair.style.opacity='1';
   pair.style.pointerEvents='all';
