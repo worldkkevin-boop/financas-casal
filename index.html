@@ -808,11 +808,13 @@ function pinPress(d) {
 }
 function pinBackspace() { pinBuffer=pinBuffer.slice(0,-1); updatePinDots(); }
 function pinClear() { pinBuffer=''; updatePinDots(); }
+function lockApp() { localStorage.removeItem('nosDoisUnlocked'); location.reload(); }
 function updatePinDots() {
   for (let i=0;i<4;i++) document.getElementById('d'+i).classList.toggle('filled',i<pinBuffer.length);
 }
 function tryLogin() {
   if (pinBuffer===state.pin) {
+    localStorage.setItem('nosDoisUnlocked','1');
     document.getElementById('splash').classList.add('hide');
     setTimeout(()=>{ document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('visible'); initApp(); },480);
     if ('Notification' in window && Notification.permission==='default') Notification.requestPermission();
@@ -2176,6 +2178,7 @@ function renderSettings() {
   <div class="card">
     <div class="card-title">Segurança</div>
     <div class="setting-row"><div><div class="setting-label">PIN de acesso</div><div class="setting-sub">Exatamente 4 dígitos numéricos</div></div><input class="setting-input" type="password" inputmode="numeric" pattern="[0-9]*" value="${esc(state.pin)}" onchange="savePin(this.value)" maxlength="4"/></div>
+    <div class="setting-row"><div><div class="setting-label">Manter conectado</div><div class="setting-sub">Não pede o PIN ao recarregar. Toque pra bloquear agora.</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="lockApp()">🔒 Bloquear</button></div>
   </div>
   <div class="card">
     <div class="card-title">Sincronização ${fbStatus}</div>
@@ -2226,6 +2229,7 @@ function clearData() {
     }
     localStorage.removeItem('nosDoiFinancas');
     localStorage.removeItem('nosDoisUser');
+    localStorage.removeItem('nosDoisUnlocked');
     location.reload();
   }, {okLabel:'Apagar tudo'});
 }
@@ -2550,6 +2554,16 @@ if ('serviceWorker' in navigator) {
     try{ const b=document.getElementById('jsErrorBanner'); if (b){ b.textContent = 'Promise Rejection: '+(ev.reason&&ev.reason.message?ev.reason.message:ev.reason); b.style.display='block'; } }catch(_){ }
     console.error('Unhandled Rejection', ev);
   });
+
+// AUTO-LOGIN: se já desbloqueou neste aparelho, pula a tela do PIN
+if (localStorage.getItem('nosDoisUnlocked')==='1') {
+  try {
+    const sp=document.getElementById('splash');
+    if (sp){ sp.classList.add('hide'); sp.style.display='none'; }
+    document.getElementById('app').classList.add('visible');
+    initApp();
+  } catch(e){ console.warn('auto-login falhou', e); }
+}
 
 // INIT ON LOAD
 window.addEventListener('load', () => {
