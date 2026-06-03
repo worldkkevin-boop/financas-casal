@@ -575,7 +575,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 <div class="modal-overlay" id="importModal"><div class="modal">
   <div class="modal-handle"></div>
   <div class="modal-title">📥 Importar fatura</div>
-  <div id="importHint" style="color:var(--text2);font-size:.82rem;margin-bottom:10px">Copie o texto da sua fatura e cole abaixo. O app identifica as compras automaticamente.</div>
+  <div id="importHint" style="color:var(--text2);font-size:.82rem;margin-bottom:10px">Cole o texto da fatura. As compras parceladas são projetadas pros próximos meses automaticamente. ⚠️ Confira o <b>dia de fechamento</b> do cartão antes.</div>
   <div class="form-group"><textarea class="form-input" id="importText" rows="7" placeholder="Cole aqui o texto da fatura (com ; separando as colunas)..." style="resize:vertical;font-family:monospace;font-size:.78rem;line-height:1.5"></textarea></div>
   <div class="btn-row" style="margin-top:13px">
     <button class="btn-secondary" onclick="closeImportModal()">Cancelar</button>
@@ -2414,6 +2414,14 @@ function parseValorBR(s){
   s=s.replace(/\./g,'').replace(',','.');
   return parseFloat(s);
 }
+function normDesc(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,16); }
+function fdate(y,m,day){ return y+'-'+String(m+1).padStart(2,'0')+'-'+String(day).padStart(2,'0'); }
+// Em qual mês/ano cai a 1ª parcela (ou a compra), dado o dia de fechamento
+function invoiceMonthOf(dateStr, closingDay){
+  const d=new Date(dateStr+'T12:00:00'); let m=d.getMonth(), y=d.getFullYear();
+  if(d.getDate() > (closingDay||31)){ m++; if(m>11){m=0;y++;} }
+  return {m,y,day:d.getDate()};
+}
 function guessCat(desc){
   const d=(desc||'').toLowerCase();
   if(/(drogasil|farmac|drogaria|pharma|raia|pacheco|hna)/.test(d)) return 'saude';
@@ -2431,37 +2439,56 @@ function parseFatura(){
   const card=getCard(importCardId); if(!card){ closeImportModal(); return; }
   const raw=document.getElementById('importText').value||'';
   if(!raw.trim()){ showToast('Cole o texto da fatura primeiro','error'); return; }
-  // mês da fatura: usa a data de vencimento, senão o mês em visualização
-  const venc=raw.match(/Vencimento\s*;?\s*(\d{2})\/(\d{2})\/(\d{4})/i);
-  const invDate = venc ? (venc[3]+'-'+venc[2]+'-01')
-                       : (currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-01');
+  const closing=card.closingDay||10;
   const owner=card.owner||'both';
-  const lines=raw.split(/\r?\n/);
   let added=0, skipped=0;
-  const sig=new Set(state.transactions.map(t=>t.date+'|'+t.description+'|'+t.amount+'|'+(t.installCur||'')+'/'+(t.installTot||'')+'|'+(t.cardId||'')));
-  lines.forEach(line=>{
-    const parts=line.split(';');
-    if(parts.length<4) return;
-    if(!/^\d{2}\/\d{2}\/\d{4}$/.test(parts[0].trim())) return; // não é linha de compra
-    const desc=(parts[1]||'').replace(/\s+/g,' ').trim();
-    const parcela=(parts[2]||'').trim();
-    const val=parseValorBR(parts[3]||'');
-    if(isNaN(val) || val<=0){ skipped++; return; } // pagamento/crédito → ignora
-    let installCur=null, installTot=null;
-    const pm=parcela.match(/\(?(\d{1,2})\/(\d{1,2})\)?/);
-    if(pm){ installCur=parseInt(pm[1]); installTot=parseInt(pm[2]); }
-    const k=invDate+'|'+(desc||'Compra cartão')+'|'+val+'|'+(installCur||'')+'/'+(installTot||'')+'|'+card.id;
-    if(sig.has(k)){ skipped++; return; }
-    sig.add(k);
-    state.transactions.push({id:uid(),description:desc||'Compra cartão',amount:val,date:invDate,
-      category:guessCat(desc),payment:'credito',cardId:card.id,type:'expense',person:owner,
-      splitMode:owner==='both'?'50-50':null,splitPct:null,note:null,recurring:null,
-      installCur,installTot,imported:true,createdBy:getCurrentUser(),createdAt:new Date().toISOString()});
-    added++;
+  // assinatura das compras já existentes deste cartão (evita duplicar ao reimportar)
+  const sig=new Set(state.transactions.filter(t=>t.cardId===card.id).map(t=>{
+    const mk=(t.date||'').slice(0,7);
+    return t.installTot ? card.id+'|'+normDesc(t.description)+'|'+t.installCur+'/'+t.installTot+'|'+mk
+                        : card.id+'|'+normDesc(t.description)+'|'+Math.round(t.amount*100)+'|'+mk;
+  }));
+  raw.split(/\r?\n/).forEach(line=>{
+    const p=line.split(';'); if(p.length<4) return;
+    const dm=p[0].trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(!dm) return; // não é linha de compra
+    const desc=(p[1]||'').replace(/\s+/g,' ').trim();
+    const val=parseValorBR(p[3]||''); if(isNaN(val)||val<=0){ skipped++; return; } // pagamento/crédito → ignora
+    const origDate=dm[3]+'-'+dm[2]+'-'+dm[1];
+    const cat=guessCat(desc);
+    const pm=(p[2]||'').match(/\(?(\d{1,2})\/(\d{1,2})\)?/);
+    if(pm){
+      // PARCELADO: projeta da parcela atual até a última, uma por fatura
+      const cur=parseInt(pm[1]), tot=parseInt(pm[2]);
+      const base=invoiceMonthOf(origDate, closing); // mês da 1ª parcela
+      for(let i=cur;i<=tot;i++){
+        let tm=base.m+(i-1), ty=base.y+Math.floor(tm/12); tm=((tm%12)+12)%12;
+        const dd=Math.min(base.day, new Date(ty,tm+1,0).getDate());
+        const date=fdate(ty,tm,dd), mk=date.slice(0,7);
+        const k=card.id+'|'+normDesc(desc)+'|'+i+'/'+tot+'|'+mk;
+        if(sig.has(k)){ skipped++; continue; }
+        sig.add(k);
+        state.transactions.push({id:uid(),description:desc||'Compra cartão',amount:val,date,category:cat,
+          payment:'credito',cardId:card.id,type:'expense',person:owner,splitMode:owner==='both'?'50-50':null,
+          splitPct:null,note:null,recurring:null,installCur:i,installTot:tot,imported:true,
+          createdBy:getCurrentUser(),createdAt:new Date().toISOString()});
+        added++;
+      }
+    } else {
+      // À VISTA: usa a data real (o app já joga na fatura certa pelo dia de fechamento)
+      const mk=origDate.slice(0,7);
+      const k=card.id+'|'+normDesc(desc)+'|'+Math.round(val*100)+'|'+mk;
+      if(sig.has(k)){ skipped++; return; }
+      sig.add(k);
+      state.transactions.push({id:uid(),description:desc||'Compra cartão',amount:val,date:origDate,category:cat,
+        payment:'credito',cardId:card.id,type:'expense',person:owner,splitMode:owner==='both'?'50-50':null,
+        splitPct:null,note:null,recurring:null,installCur:null,installTot:null,imported:true,
+        createdBy:getCurrentUser(),createdAt:new Date().toISOString()});
+      added++;
+    }
   });
   saveState(); closeImportModal();
-  if(added) showToast(added+' compra(s) importada(s)'+(skipped?' · '+skipped+' ignorada(s)':''),'success',5000);
-  else showToast('Nenhuma compra encontrada. Confira o texto colado.','error',5000);
+  if(added) showToast(added+' lançamento(s) importado(s)'+(skipped?' · '+skipped+' já existiam':''),'success',5000);
+  else showToast('Nada novo pra importar (confira o texto / dia de fechamento do cartão).','info',5500);
   renderCurrentTab(); updateBudgetBadge();
 }
 
