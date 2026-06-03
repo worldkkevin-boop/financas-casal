@@ -50,13 +50,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /couples/{coupleId} {
-      allow read, write: if true;
+      allow create: if request.auth != null;
+      allow read, update, delete: if request.auth != null && (
+        !('members' in resource.data) ||
+        request.auth.uid in resource.data.members ||
+        resource.data.members.size() < 2
+      );
     }
   }
 }
 ```
 
-> ⚠️ Essas regras permitem acesso a quem tiver o código do casal. Para uso privado de vocês dois, está ótimo.
+> 🔒 **Seguro:** só os **2 primeiros celulares logados** (os membros do casal) conseguem ler/escrever. Depois que os dois entraram, ninguém mais consegue acessar, mesmo com o código. O mesmo conteúdo está no arquivo `firestore.rules` do projeto.
+
+---
+
+## Passo 3.1 — Habilitar Login Anônimo (importante)
+
+As regras acima exigem que o app esteja **logado**. O app faz isso sozinho com login anônimo — você só precisa ativar:
+
+1. No Firebase Console: **Authentication** → **Get started**
+2. Aba **Sign-in method** → **Add new provider** → **Anonymous** → **Enable** → **Save**
+
+> Sem esse passo, o app não consegue salvar (vai dar erro de permissão).
 
 ---
 
