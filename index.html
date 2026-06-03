@@ -44,9 +44,12 @@ html{font-size:16px}
 body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100dvh;overflow-x:hidden;overscroll-behavior-y:contain;transition:background .3s,color .3s}
 
 /* PULL TO REFRESH */
-#ptr{position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:90;display:flex;align-items:center;justify-content:center;gap:7px;height:0;overflow:hidden;color:var(--text2);font-size:.82rem;background:var(--bg);transition:height .2s;pointer-events:none}
-#ptr #ptrIcon{font-size:1rem;display:inline-block}
-#ptr.spin #ptrIcon{animation:ptrspin .7s linear infinite}
+#ptr{position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:90;display:flex;align-items:center;justify-content:center;gap:8px;height:0;overflow:hidden;color:var(--text2);font-size:.84rem;font-weight:600;background:var(--bg);transition:height .2s,color .2s;pointer-events:none}
+#ptr #ptrIcon{font-size:1.2rem;display:inline-block;transition:transform .2s,color .2s}
+#ptr.ready{color:var(--accent)}
+#ptr.ready #ptrIcon{transform:rotate(180deg)}
+#ptr.spin{color:var(--accent)}
+#ptr.spin #ptrIcon{animation:ptrspin .6s linear infinite;color:var(--accent)}
 @keyframes ptrspin{to{transform:rotate(360deg)}}
 
 /* SPLASH */
@@ -342,7 +345,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 </style>
 </head>
 <body>
-<div id="ptr"><span id="ptrIcon">↓</span><span id="ptrText">Puxe para atualizar</span></div>
+<div id="ptr"><span id="ptrIcon">↻</span><span id="ptrText">Puxe para atualizar</span></div>
 <div id="toastContainer"></div>
 <div id="splash">
   <div class="splash-glow"></div>
@@ -2593,16 +2596,19 @@ window.addEventListener('load', () => {
     dist=e.touches[0].clientY-startY;
     if(dist>0 && scrollTop()<=0){
       e.preventDefault();
-      ind.style.height=Math.min(dist*0.45,70)+'px';
-      txt.textContent = dist>TRIGGER ? 'Solte para atualizar' : 'Puxe para atualizar';
+      ind.style.height=Math.min(dist*0.5,72)+'px';
+      const ready=dist>TRIGGER;
+      ind.classList.toggle('ready', ready);
+      txt.textContent = ready ? 'Solte para atualizar' : 'Puxe para atualizar';
     } else { ind.style.height='0px'; }
   }, {passive:false});
   document.addEventListener('touchend', ()=>{
     if(!active) return; active=false;
     if(dist>TRIGGER){
-      ind.classList.add('spin'); ind.style.height='46px'; txt.textContent='Atualizando...';
-      setTimeout(()=>location.reload(), 350);
-    } else { ind.style.height='0px'; }
+      ind.classList.remove('ready'); ind.classList.add('spin');
+      ind.style.height='52px'; txt.textContent='Atualizando...';
+      setTimeout(()=>location.reload(), 900);
+    } else { ind.classList.remove('ready'); ind.style.height='0px'; }
   }, {passive:true});
 })();
 </script>
