@@ -563,10 +563,23 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
       <div id="cardColorGrid" style="display:flex;gap:9px;flex-wrap:wrap"></div>
     </div>
   </div>
-  <div class="btn-row" style="margin-top:13px">
+  <button class="btn-secondary" id="btnImportFatura" style="width:100%;display:none;margin-top:11px" onclick="openImportFatura()">📥 Importar fatura (colar)</button>
+  <div class="btn-row" style="margin-top:9px">
     <button class="btn-secondary" onclick="closeCardModal()">Cancelar</button>
     <button class="btn-danger" style="display:none;padding:9px 12px" id="btnDeleteCard" onclick="deleteCard()">🗑</button>
     <button class="btn-primary" style="flex:1.5" onclick="saveCard()">Salvar</button>
+  </div>
+</div></div>
+
+<!-- IMPORT FATURA MODAL -->
+<div class="modal-overlay" id="importModal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title">📥 Importar fatura</div>
+  <div id="importHint" style="color:var(--text2);font-size:.82rem;margin-bottom:10px">Copie o texto da sua fatura e cole abaixo. O app identifica as compras automaticamente.</div>
+  <div class="form-group"><textarea class="form-input" id="importText" rows="7" placeholder="Cole aqui o texto da fatura (com ; separando as colunas)..." style="resize:vertical;font-family:monospace;font-size:.78rem;line-height:1.5"></textarea></div>
+  <div class="btn-row" style="margin-top:13px">
+    <button class="btn-secondary" onclick="closeImportModal()">Cancelar</button>
+    <button class="btn-primary" style="flex:1.5" onclick="parseFatura()">Importar</button>
   </div>
 </div></div>
 
@@ -2342,6 +2355,7 @@ function openCardModal(id){
   document.getElementById('cardColorGrid').innerHTML=CARD_COLORS.map(col=>
     '<div class="color-dot'+(col===color?' active':'')+'" data-color="'+col+'" style="background:'+col+'" onclick="selectCardColor(\''+col+'\')"></div>').join('');
   document.getElementById('btnDeleteCard').style.display=c?'flex':'none';
+  document.getElementById('btnImportFatura').style.display=c?'block':'none';
   document.getElementById('cardModal').classList.add('open');
 }
 function selectCardColor(col){
@@ -2381,6 +2395,74 @@ function deleteCard(){
     state.cards=(state.cards||[]).filter(c=>c.id!==cardId);
     saveState(); closeCardModal(); showToast('🗑 Cartão removido','info'); renderCurrentTab();
   }, {okLabel:'Excluir'});
+}
+
+// IMPORTAR FATURA (colar texto da fatura do banco)
+let importCardId=null;
+function openImportFatura(){
+  importCardId=editingCardId;
+  if(!importCardId) return;
+  closeCardModal();
+  document.getElementById('importText').value='';
+  document.getElementById('importModal').classList.add('open');
+  setTimeout(()=>document.getElementById('importText').focus(),120);
+}
+function closeImportModal(){ document.getElementById('importModal').classList.remove('open'); }
+function parseValorBR(s){
+  if(!s) return NaN;
+  s=String(s).replace(/R\$/gi,'').replace(/U\$/gi,'').replace(/US\$/gi,'').trim();
+  s=s.replace(/\./g,'').replace(',','.');
+  return parseFloat(s);
+}
+function guessCat(desc){
+  const d=(desc||'').toLowerCase();
+  if(/(drogasil|farmac|drogaria|pharma|raia|pacheco|hna)/.test(d)) return 'saude';
+  if(/(mercado|super|atacad|carrefour|assa|hortifruti|padaria|domestilar)/.test(d)) return 'alimentacao';
+  if(/(uber|99|posto|combust|ipiranga|shell|gasol|estaciona)/.test(d)) return 'transporte';
+  if(/(ifood|rappi|restaurante|lanchonete|burger|pizza|mcdonald|bk )/.test(d)) return 'restaurante';
+  if(/(netflix|spotify|prime|hbo|disney|youtube|assinatura|google|apple\.com|jim\.?com|jim com)/.test(d)) return 'assinaturas';
+  if(/(amazon|mercadolivre|magalu|shopee|aliexpress|tiktok|americanas|loja|boticario|botica|sephora|perfum)/.test(d)) return 'compras';
+  if(/(escola|curso|faculdade|udemy|alura|centrodeforma|forma)/.test(d)) return 'educacao';
+  if(/(cinema|show|ingresso|lazer|netshoes|trader|ftmo)/.test(d)) return 'lazer';
+  if(/(pet|petz|cobasi|veterin)/.test(d)) return 'pets';
+  return 'outros';
+}
+function parseFatura(){
+  const card=getCard(importCardId); if(!card){ closeImportModal(); return; }
+  const raw=document.getElementById('importText').value||'';
+  if(!raw.trim()){ showToast('Cole o texto da fatura primeiro','error'); return; }
+  // mês da fatura: usa a data de vencimento, senão o mês em visualização
+  const venc=raw.match(/Vencimento\s*;?\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  const invDate = venc ? (venc[3]+'-'+venc[2]+'-01')
+                       : (currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-01');
+  const owner=card.owner||'both';
+  const lines=raw.split(/\r?\n/);
+  let added=0, skipped=0;
+  const sig=new Set(state.transactions.map(t=>t.date+'|'+t.description+'|'+t.amount+'|'+(t.installCur||'')+'/'+(t.installTot||'')+'|'+(t.cardId||'')));
+  lines.forEach(line=>{
+    const parts=line.split(';');
+    if(parts.length<4) return;
+    if(!/^\d{2}\/\d{2}\/\d{4}$/.test(parts[0].trim())) return; // não é linha de compra
+    const desc=(parts[1]||'').replace(/\s+/g,' ').trim();
+    const parcela=(parts[2]||'').trim();
+    const val=parseValorBR(parts[3]||'');
+    if(isNaN(val) || val<=0){ skipped++; return; } // pagamento/crédito → ignora
+    let installCur=null, installTot=null;
+    const pm=parcela.match(/\(?(\d{1,2})\/(\d{1,2})\)?/);
+    if(pm){ installCur=parseInt(pm[1]); installTot=parseInt(pm[2]); }
+    const k=invDate+'|'+(desc||'Compra cartão')+'|'+val+'|'+(installCur||'')+'/'+(installTot||'')+'|'+card.id;
+    if(sig.has(k)){ skipped++; return; }
+    sig.add(k);
+    state.transactions.push({id:uid(),description:desc||'Compra cartão',amount:val,date:invDate,
+      category:guessCat(desc),payment:'credito',cardId:card.id,type:'expense',person:owner,
+      splitMode:owner==='both'?'50-50':null,splitPct:null,note:null,recurring:null,
+      installCur,installTot,imported:true,createdBy:getCurrentUser(),createdAt:new Date().toISOString()});
+    added++;
+  });
+  saveState(); closeImportModal();
+  if(added) showToast(added+' compra(s) importada(s)'+(skipped?' · '+skipped+' ignorada(s)':''),'success',5000);
+  else showToast('Nenhuma compra encontrada. Confira o texto colado.','error',5000);
+  renderCurrentTab(); updateBudgetBadge();
 }
 
 // Mostra/esconde o seletor de cartão no modal de lançamento
@@ -2569,7 +2651,7 @@ function saveTx() {
 
 // MODALS CLOSE ON OVERLAY
 document.querySelectorAll('.modal-overlay').forEach(el=>{
-  el.addEventListener('click',e=>{if(e.target===el){closeModal();closeGoalModal();closeDepositModal();closeBudgetModal();closeCardModal();closeUsdModal();closeInputModal();closeConfirm();}});
+  el.addEventListener('click',e=>{if(e.target===el){closeModal();closeGoalModal();closeDepositModal();closeBudgetModal();closeCardModal();closeUsdModal();closeInputModal();closeConfirm();closeImportModal();}});
 });
 
 // SERVICE WORKER
