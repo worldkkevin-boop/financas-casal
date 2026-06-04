@@ -453,6 +453,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <button class="nav-tab" id="tabSplit" onclick="showTab('split',this)">⚖️ Divisão</button>
     <button class="nav-tab" onclick="showTab('budget',this)" id="tabBudget">🎯 Orçamento<span class="tab-badge" id="budgetBadge" style="display:none"></span></button>
     <button class="nav-tab" onclick="showTab('goals',this)">💰 Metas</button>
+    <button class="nav-tab" onclick="showTab('portfolio',this)">📈 Carteira</button>
     <button class="nav-tab" onclick="showTab('dream',this)">✈️ Sonho</button>
     <button class="nav-tab" onclick="showTab('annual',this)">📅 Ano</button>
     <button class="nav-tab" onclick="showTab('settings',this)">⚙️ Config</button>
@@ -557,6 +558,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <div class="btn-row" style="margin-top:13px">
     <button class="btn-secondary" onclick="closeUsdModal()">Cancelar</button>
     <button class="btn-primary" style="flex:1.5" onclick="confirmUsd()">Confirmar</button>
+  </div>
+</div></div>
+
+<!-- ASSET MODAL (carteira) -->
+<div class="modal-overlay" id="assetModal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="assetModalTitle">Novo Ativo</div>
+  <div class="form-grid">
+    <div class="form-group full"><label class="form-label">Classe</label>
+      <select class="form-select" id="assetClass" onchange="updateAssetFields()"></select></div>
+    <div class="form-group full" id="assetTickerRow"><label class="form-label">Código (ticker)</label><input class="form-input" id="assetTicker" placeholder="Ex: TAEE11"/></div>
+    <div class="form-group full"><label class="form-label">Nome (opcional)</label><input class="form-input" id="assetName" placeholder="Ex: Taesa / Tesouro Selic 2031"/></div>
+    <div class="form-group full" id="assetRFRow" style="display:none"><label class="form-label">Valor aplicado (R$)</label><input class="form-input" id="assetRF" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
+    <div class="form-group" id="assetQtyRow"><label class="form-label">Quantidade</label><input class="form-input" id="assetQty" type="number" inputmode="decimal" step="0.0001" placeholder="0"/></div>
+    <div class="form-group" id="assetAvgRow"><label class="form-label">Preço médio (R$)</label><input class="form-input" id="assetAvg" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
+    <div class="form-group" id="assetDyRow"><label class="form-label">Dividendos 12m (R$/cota)</label><input class="form-input" id="assetDy" type="number" inputmode="decimal" step="0.01" placeholder="opcional"/></div>
+    <div class="form-group" id="assetCeilRow"><label class="form-label">Preço-teto manual (R$)</label><input class="form-input" id="assetCeil" type="number" inputmode="decimal" step="0.01" placeholder="opcional"/></div>
+  </div>
+  <div style="font-size:.68rem;color:var(--text3);margin-top:6px">💡 Informe os <strong>dividendos 12m por cota</strong> pra calcular o preço-teto (Bazin), ou ponha um teto manual.</div>
+  <div class="btn-row" style="margin-top:13px">
+    <button class="btn-secondary" onclick="closeAssetModal()">Cancelar</button>
+    <button class="btn-danger" style="display:none;padding:9px 12px" id="btnDeleteAsset" onclick="deleteAsset()">🗑</button>
+    <button class="btn-primary" style="flex:1.5" onclick="saveAsset()">Salvar</button>
   </div>
 </div></div>
 
@@ -800,7 +824,8 @@ function defaultState() {
   return {pin:'1234',p1name:'Eu',p2name:'Ela',p1income:0,p2income:0,
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
-    cardReserve:{balance:0,entries:[],paid:[]},payday:20,theme:'dark',coupleId:null,mode:null};
+    cardReserve:{balance:0,entries:[],paid:[]},payday:20,theme:'dark',coupleId:null,mode:null,
+    portfolio:{assets:[]},brapiToken:''};
 }
 function isSolo(){ return state.mode==='solo'; }
 // Usuários antigos (já têm dados) entram como casal sem precisar escolher
@@ -872,10 +897,10 @@ async function pushToFirebase() {
   if (!uid) return; // sem auth não escreve (regras exigem login)
   try {
     await getCoupleRef().set({
-      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,theme:state.theme},
+      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||''},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
-      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]},
+      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]},
       transactions:state.transactions, goals:state.goals,
       members: firebase.firestore.FieldValue.arrayUnion(uid),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -901,6 +926,7 @@ function subscribeFirebase() {
     if (data.investments) state.investments = data.investments;
     if (data.bills) state.bills = data.bills;
     if (data.cardReserve) state.cardReserve = data.cardReserve;
+    if (data.portfolio) state.portfolio = data.portfolio;
     if (data.transactions) state.transactions = data.transactions;
     if (data.goals) state.goals = data.goals;
     localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -1085,7 +1111,7 @@ function showTab(tab,el) {
   document.getElementById('fabBtn').onclick=(tab==='goals')?openGoalModal:openAddModal;
 }
 function navTo(tab){
-  const map={dashboard:0,transactions:1,split:2,budget:3,goals:4,dream:5,annual:6,settings:7};
+  const map={dashboard:0,transactions:1,split:2,budget:3,goals:4,portfolio:5,dream:6,annual:7,settings:8};
   const el=document.querySelectorAll('.nav-tab')[map[tab]];
   if(el) showTab(tab,el);
 }
@@ -1097,6 +1123,7 @@ function renderTab(tab) {
   else if (tab==='split') el.innerHTML=renderSplit();
   else if (tab==='budget') el.innerHTML=renderBudget();
   else if (tab==='goals') el.innerHTML=renderGoals();
+  else if (tab==='portfolio') el.innerHTML=renderPortfolio();
   else if (tab==='dream') el.innerHTML=renderDream();
   else if (tab==='annual') { el.innerHTML=renderAnnual(); initAnnualChart(); }
   else if (tab==='settings') el.innerHTML=renderSettings();
@@ -2614,6 +2641,186 @@ function renderDollarHistory(){
     +'<div style="font-size:.66rem;color:var(--text3);margin-bottom:2px">Compras</div>'
     +rows
     +'</div>';
+}
+
+// ============================================================
+// CARTEIRA / INVESTIMENTOS — cotação ao vivo + preço-teto (Bazin)
+// ============================================================
+const ASSET_CLASSES = [
+  {id:'renda_fixa', name:'Renda Fixa', color:'#ff5f5f', short:'RF'},
+  {id:'acao_br', name:'Ações Brasileiras', color:'#34d48a', short:'AÇ'},
+  {id:'fii', name:'Fundos Imobiliários', color:'#3a8dff', short:'FII'},
+  {id:'acao_int', name:'Ações Internacionais', color:'#ffaa4d', short:'INT'},
+  {id:'cripto', name:'Cripto', color:'#a78bfa', short:'CR'},
+];
+function assetClass(id){ return ASSET_CLASSES.find(c=>c.id===id)||ASSET_CLASSES[0]; }
+function ensurePortfolio(){ if(!state.portfolio) state.portfolio={assets:[]}; if(!state.portfolio.assets) state.portfolio.assets=[]; }
+function isRF(a){ return a.class==='renda_fixa'; }
+function assetValue(a){ return isRF(a)?(a.valorRF||0):((a.qty||0)*(a.price||a.avgPrice||0)); }
+function assetInvested(a){ return isRF(a)?(a.valorRF||0):((a.qty||0)*(a.avgPrice||0)); }
+function assetCeiling(a){ if(a.manualCeiling>0) return a.manualCeiling; if(a.dy12>0) return a.dy12/0.06; return 0; } // Bazin: teto = dividendo anual / 6%
+function assetSignal(a){ const c=assetCeiling(a), p=a.price||0; if(!c||!p) return null; return p<=c?{txt:'Comprar',color:'var(--green)'}:{txt:'Esperar',color:'var(--orange)'}; }
+
+async function fetchOneQuote(ticker, token){
+  // 1) BRAPI (com token) — confiável e com CORS liberado
+  if(token){
+    try{
+      const url='https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token);
+      const r=await fetch(url,{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); const d=j&&j.results&&j.results[0];
+        if(d&&d.regularMarketPrice) return {price:d.regularMarketPrice, name:d.longName||d.shortName}; }
+    }catch(e){}
+  }
+  // 2) Yahoo (sem token) — fallback; às vezes bloqueado por CORS
+  try{
+    const r=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(ticker)+'.SA?interval=1d&range=1d',{cache:'no-store'});
+    if(r.ok){ const j=await r.json(); const m=j&&j.chart&&j.chart.result&&j.chart.result[0]&&j.chart.result[0].meta;
+      if(m&&m.regularMarketPrice) return {price:m.regularMarketPrice, name:m.longName}; }
+  }catch(e){}
+  return null;
+}
+async function fetchQuotes(){
+  ensurePortfolio();
+  const tickers=[...new Set(state.portfolio.assets.filter(a=>!isRF(a)&&a.ticker).map(a=>a.ticker.toUpperCase()))];
+  if(!tickers.length){ showToast('Adicione ativos com código (ex: TAEE11) primeiro','info'); return; }
+  const token=(state.brapiToken||'').trim();
+  showToast('Atualizando cotações...','info',1500);
+  let ok=0, fail=0;
+  for(const t of tickers){
+    const q=await fetchOneQuote(t, token);
+    if(q&&q.price){
+      state.portfolio.assets.filter(a=>(a.ticker||'').toUpperCase()===t).forEach(a=>{
+        a.price=Math.round(q.price*100)/100; a.lastUpdate=new Date().toISOString();
+        if(q.name&&!a.name) a.name=q.name;
+      });
+      ok++;
+    } else fail++;
+  }
+  saveState(); renderCurrentTab();
+  showToast(ok?('✅ '+ok+' cotação(ões) atualizada(s)'+(fail?' · '+fail+' não achei':'')):'Não consegui atualizar. Confira o token BRAPI / internet.', ok?'success':'error',5000);
+}
+function setBrapiToken(v){ state.brapiToken=(v||'').trim(); saveState(); showToast(state.brapiToken?'🔑 Token salvo':'Token removido','success'); }
+
+function renderPortfolio(){
+  ensurePortfolio();
+  const assets=state.portfolio.assets;
+  const totalVal=assets.reduce((s,a)=>s+assetValue(a),0);
+  const totalInv=assets.reduce((s,a)=>s+assetInvested(a),0);
+  const gain=totalVal-totalInv;
+  // alocação por classe
+  const byClass=ASSET_CLASSES.map(c=>{const v=assets.filter(a=>a.class===c.id).reduce((s,a)=>s+assetValue(a),0);return {...c,val:v,pct:totalVal>0?v/totalVal*100:0};}).filter(c=>c.val>0||assets.some(a=>a.class===c.id));
+  const lastUp=assets.map(a=>a.lastUpdate).filter(Boolean).sort().pop();
+  const lastTxt=lastUp?('atualizado '+new Date(lastUp).toLocaleString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})):'sem cotação ainda';
+
+  let html=`<div class="hero-card fade-up">
+    <div class="hero-label">Minha carteira</div>
+    <div class="hero-amount ${gain>=0?'pos':'neg'}">${fmtHero(totalVal)}</div>
+    <div class="hero-sub">${totalInv>0?'Aplicado '+fmt(totalInv)+' · '+(gain>=0?'+':'')+fmt(gain)+' ('+(totalInv>0?((gain/totalInv*100).toFixed(1)):'0')+'%)':'Adicione seus ativos abaixo'}</div>
+  </div>`;
+
+  // barras de alocação
+  if(byClass.length){
+    html+='<div class="card fade-up"><div class="card-title">Distribuição por classe</div>';
+    byClass.forEach(c=>{
+      html+='<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px"><span style="font-weight:600">'+c.name+'</span><span style="color:var(--text3)">'+c.pct.toFixed(0)+'% · '+fmt(c.val)+'</span></div><div class="budget-bar"><div class="budget-fill" style="width:'+c.pct.toFixed(1)+'%;background:'+c.color+'"></div></div></div>';
+    });
+    html+='</div>';
+  }
+
+  // botão atualizar
+  html+='<div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn-primary" style="flex:1" onclick="fetchQuotes()">🔄 Atualizar cotações</button><button class="btn-secondary" style="padding:9px 13px" onclick="openAssetModal()">+ Ativo</button></div>';
+  html+='<div style="font-size:.68rem;color:var(--text3);text-align:center;margin:-4px 0 10px">'+esc(lastTxt)+'</div>';
+
+  // por classe
+  ASSET_CLASSES.forEach(c=>{
+    const items=assets.filter(a=>a.class===c.id);
+    if(!items.length) return;
+    const cv=items.reduce((s,a)=>s+assetValue(a),0);
+    html+='<div class="card fade-up"><div class="card-title"><span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;border-radius:3px;background:'+c.color+'"></span>'+c.name+'</span><span style="font-size:.72rem;color:var(--text3)">'+(totalVal>0?(cv/totalVal*100).toFixed(0):'0')+'%</span></div>';
+    items.forEach(a=>{
+      const sig=assetSignal(a), ceil=assetCeiling(a), val=assetValue(a);
+      html+='<div onclick="openAssetModal(\''+a.id+'\')" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">'
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-weight:700;font-size:.9rem">'+esc(a.ticker||a.name||'—')+(a.name&&a.ticker?' <span style="font-weight:400;font-size:.68rem;color:var(--text3)">'+esc(a.name)+'</span>':'')+'</div><div style="font-family:var(--font-d);font-weight:700">'+fmt(val)+'</div></div>';
+      if(isRF(a)){
+        html+='<div style="font-size:.68rem;color:var(--text3);margin-top:2px">'+(a.name?esc(a.name):'Renda fixa')+'</div>';
+      } else {
+        html+='<div style="display:flex;gap:14px;margin-top:5px;font-size:.72rem">'
+          +'<div><div style="color:var(--text3);font-size:.62rem">Preço atual</div><div style="font-weight:600">'+(a.price?fmt(a.price):'—')+'</div></div>'
+          +'<div><div style="color:var(--text3);font-size:.62rem">Preço-teto</div><div style="font-weight:600">'+(ceil?fmt(ceil):'—')+'</div></div>'
+          +'<div style="margin-left:auto;text-align:right"><div style="color:var(--text3);font-size:.62rem">Viés</div><div style="font-weight:700;color:'+(sig?sig.color:'var(--text3)')+'">'+(sig?sig.txt:'—')+'</div></div>'
+          +'</div><div style="font-size:.64rem;color:var(--text3);margin-top:3px">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)</div>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+  });
+
+  if(!assets.length){
+    html+='<div class="card"><div class="empty-state"><div class="e-icon">📈</div><p>Sua carteira está vazia.<br>Toque em <strong>+ Ativo</strong> pra começar.</p></div></div>';
+  }
+
+  // token de cotações
+  html+='<div class="card"><div class="card-title">🔑 Cotações automáticas</div>'
+    +'<div style="font-size:.78rem;color:var(--text2);margin-bottom:9px">Pra atualizar preços de ações e FIIs, cole um token gratuito da <strong>brapi.dev</strong> (cria conta grátis → copia o token). Sem token, ele tenta o Yahoo (nem sempre funciona).</div>'
+    +'<div class="setting-row"><div><div class="setting-label">Token BRAPI</div><div class="setting-sub">Guardado só no seu app</div></div><input class="setting-input" type="text" value="'+esc(state.brapiToken||'')+'" placeholder="cole aqui" onchange="setBrapiToken(this.value)"/></div>'
+    +'<a href="https://brapi.dev" target="_blank" rel="noopener" style="font-size:.76rem;color:var(--cyan)">Abrir brapi.dev pra pegar o token →</a></div>';
+
+  html+='<div style="font-size:.7rem;color:var(--text3);text-align:center;padding:4px 10px 16px;line-height:1.5">⚠️ O "preço-teto" usa o método Bazin (dividendos ÷ 6%) e o "viés" é automático — é só um <strong>guia de estudo</strong>, <strong>não é recomendação de investimento</strong>. Decisões são de vocês.</div>';
+  return html;
+}
+let editingAssetId=null;
+function updateAssetFields(){
+  const rf=document.getElementById('assetClass').value==='renda_fixa';
+  ['assetTickerRow','assetQtyRow','assetAvgRow','assetDyRow','assetCeilRow'].forEach(id=>document.getElementById(id).style.display=rf?'none':'');
+  document.getElementById('assetRFRow').style.display=rf?'':'none';
+}
+function openAssetModal(id){
+  ensurePortfolio(); editingAssetId=id||null;
+  const a=id?state.portfolio.assets.find(x=>x.id===id):null;
+  document.getElementById('assetModalTitle').textContent=a?'Editar Ativo':'Novo Ativo';
+  document.getElementById('assetClass').innerHTML=ASSET_CLASSES.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('');
+  document.getElementById('assetClass').value=a?a.class:'acao_br';
+  document.getElementById('assetTicker').value=a?(a.ticker||''):'';
+  document.getElementById('assetName').value=a?(a.name||''):'';
+  document.getElementById('assetQty').value=a&&a.qty?a.qty:'';
+  document.getElementById('assetAvg').value=a&&a.avgPrice?a.avgPrice:'';
+  document.getElementById('assetRF').value=a&&a.valorRF?a.valorRF:'';
+  document.getElementById('assetDy').value=a&&a.dy12?a.dy12:'';
+  document.getElementById('assetCeil').value=a&&a.manualCeiling?a.manualCeiling:'';
+  document.getElementById('btnDeleteAsset').style.display=a?'flex':'none';
+  updateAssetFields();
+  document.getElementById('assetModal').classList.add('open');
+}
+function closeAssetModal(){ document.getElementById('assetModal').classList.remove('open'); editingAssetId=null; }
+function saveAsset(){
+  ensurePortfolio();
+  const cls=document.getElementById('assetClass').value, rf=cls==='renda_fixa';
+  const ticker=document.getElementById('assetTicker').value.trim().toUpperCase();
+  const name=document.getElementById('assetName').value.trim();
+  const shake=el=>{el.style.borderColor='var(--red)';el.classList.add('shake');setTimeout(()=>{el.classList.remove('shake');el.style.borderColor='';},400);};
+  let data;
+  if(rf){
+    const valorRF=parseFloat(document.getElementById('assetRF').value)||0;
+    if(valorRF<=0){ shake(document.getElementById('assetRF')); return; }
+    data={class:cls,name:name||'Renda fixa',ticker:ticker||null,valorRF};
+  } else {
+    if(!ticker){ shake(document.getElementById('assetTicker')); return; }
+    data={class:cls,ticker,name:name||null,
+      qty:parseFloat(document.getElementById('assetQty').value)||0,
+      avgPrice:parseFloat(document.getElementById('assetAvg').value)||0,
+      dy12:parseFloat(document.getElementById('assetDy').value)||0,
+      manualCeiling:parseFloat(document.getElementById('assetCeil').value)||0};
+  }
+  if(editingAssetId){ const a=state.portfolio.assets.find(x=>x.id===editingAssetId); if(a) Object.assign(a,data); }
+  else state.portfolio.assets.push({id:uid(),price:0,...data});
+  saveState(); closeAssetModal(); showToast('✅ Ativo salvo','success'); renderCurrentTab();
+}
+function deleteAsset(){
+  if(!editingAssetId) return; const id=editingAssetId;
+  openConfirm('Remover este ativo da carteira?', ()=>{
+    state.portfolio.assets=state.portfolio.assets.filter(a=>a.id!==id);
+    saveState(); closeAssetModal(); showToast('🗑 Ativo removido','info'); renderCurrentTab();
+  }, {okLabel:'Remover'});
 }
 
 // ============================================================
