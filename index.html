@@ -450,7 +450,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <nav class="nav-tabs">
     <button class="nav-tab active" onclick="showTab('dashboard',this)">📊 Visão Geral</button>
     <button class="nav-tab" onclick="showTab('transactions',this)">💳 Lançamentos</button>
-    <button class="nav-tab" id="tabSplit" onclick="showTab('split',this)">⚖️ Divisão</button>
     <button class="nav-tab" onclick="showTab('budget',this)" id="tabBudget">🎯 Orçamento<span class="tab-badge" id="budgetBadge" style="display:none"></span></button>
     <button class="nav-tab" onclick="showTab('goals',this)">💰 Metas</button>
     <button class="nav-tab" onclick="showTab('portfolio',this)">📈 Carteira</button>
@@ -515,17 +514,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
         <button onclick="setPerson('p2',this)" id="btnP2" class="p2"></button>
         <button onclick="setPerson('both',this)" class="both">Ambos</button>
       </div>
-    </div>
-    <div class="form-group full" id="splitRow" style="display:none"><label class="form-label">Divisão</label>
-      <div class="split-options">
-        <button class="split-opt active" onclick="setSplitMode('50-50',this)">50/50</button>
-        <button class="split-opt" onclick="setSplitMode('proporcional',this)">Por renda</button>
-        <button class="split-opt" onclick="setSplitMode('custom',this)">Personalizado</button>
-      </div>
-    </div>
-    <div class="form-group full" id="customSplitRow" style="display:none">
-      <label class="form-label">% de quem pagou</label>
-      <input class="form-input" id="txSplitPct" type="number" min="0" max="100" value="50"/>
     </div>
   </div>
   <div class="btn-row" style="margin-top:13px">
@@ -1131,7 +1119,7 @@ function showTab(tab,el) {
   document.getElementById('fabBtn').onclick=(tab==='goals')?openGoalModal:openAddModal;
 }
 function navTo(tab){
-  const map={dashboard:0,transactions:1,split:2,budget:3,goals:4,portfolio:5,dream:6,annual:7,settings:8};
+  const map={dashboard:0,transactions:1,budget:2,goals:3,portfolio:4,dream:5,annual:6,settings:7};
   const el=document.querySelectorAll('.nav-tab')[map[tab]];
   if(el) showTab(tab,el);
 }
@@ -1320,9 +1308,10 @@ function faturasDoMes(m,y){
   if(state.cardReserve.paid.includes(mo+'-'+yr)) return 0;
   return (state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c,mo,yr),0);
 }
+function portfolioTotal(){ ensurePortfolio(); return (state.portfolio.assets||[]).reduce((s,a)=>s+assetValue(a),0); }
 function patrimonioTotal(){
-  ensureInvest(); ensureReserve();
-  const invest=state.investments.balance||0;
+  ensureReserve();
+  const invest=portfolioTotal();          // investido = valor da Carteira (ações/FII/RF/dólar-ativos)
   const caixinhas=(state.goals||[]).reduce((s,g)=>s+(g.saved||0),0);
   const d=state.dream||{};
   // valor do sonho em R$: se a meta é em real, é direto; se em dólar, converte pela cotação
@@ -1453,9 +1442,9 @@ function renderDashboard() {
       <button onclick="togglePatrimonio()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.05rem;opacity:.75;padding:0">${hidePat?'🙈':'👁'}</button>
     </div>
     <div class="hero-amount ${pat.total>=0?'pos':'neg'}">${hidePat?'<span style="font-size:1.7rem;letter-spacing:.06em">R$ ••••</span>':fmtHero(pat.total)}</div>
-    <div class="hero-sub">Investimentos + metas + sonho − faturas</div>
+    <div class="hero-sub">Carteira + metas + sonho − faturas</div>
     ${hidePat?'':`<div class="hero-stats" style="grid-template-columns:1fr 1fr">
-      <div class="hero-stat"><div class="hero-stat-lbl">💹 Investido</div><div class="hero-stat-val">${fmt(pat.invest)}</div></div>
+      <div class="hero-stat" onclick="navTo('portfolio')" style="cursor:pointer"><div class="hero-stat-lbl">📈 Carteira</div><div class="hero-stat-val">${fmt(pat.invest)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💰 Caixinhas/Metas</div><div class="hero-stat-val">${fmt(pat.caixinhas)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">${state.dream?(dreamCurrency()==='USD'?'💵 Dólar':dreamDef().icon+' Sonho'):'💵 Dólar'}</div><div class="hero-stat-val">${fmt(pat.dollarBRL)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">🐷 Reserva fatura</div><div class="hero-stat-val">${fmt(pat.reserva)}</div></div>
@@ -1504,8 +1493,6 @@ function renderDashboard() {
       <div style="flex:1"><div style="font-size:.68rem;color:var(--text3)">${dreamCurrency()==='USD'?'Meta em dólar':'Guardado'}</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.15rem;color:var(--green)">${dreamMoney(state.dream.savedUSD||0)}</div><div class="budget-bar" style="margin-top:4px"><div class="budget-fill" style="width:${dreamUsdPct.toFixed(0)}%;background:var(--green)"></div></div></div>
     </div>
   </div>`:''}
-
-  ${renderInvestmentsCard()}
 
   ${sortedCats.length?`<div class="card fade-up" style="animation-delay:.1s">
     <div class="card-title">Por Categoria</div>
@@ -3503,8 +3490,7 @@ function editTx(id) {
   updateInstallPreview();
   const btn=t.person==='both'?document.querySelectorAll('#personToggle button')[2]:(t.person==='p1'?document.getElementById('btnP1'):document.getElementById('btnP2'));
   setPerson(t.person,btn);
-  document.getElementById('txSplitPct').value=t.splitPct||50;
-  setSplitMode(t.splitMode||'50-50',null);
+  setSplitMode(t.splitMode||'50-50');
   document.getElementById('addModal').classList.add('open');
 }
 function closeModal() { document.getElementById('addModal').classList.remove('open'); }
@@ -3554,15 +3540,9 @@ function setPerson(person,btn) {
   currentPerson=person;
   document.querySelectorAll('#personToggle button').forEach(b=>b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  document.getElementById('splitRow').style.display=person==='both'?'flex':'none';
 }
-function setSplitMode(mode,btn) {
-  currentSplitMode=mode;
-  document.querySelectorAll('.split-opt').forEach(b=>b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  else {const idx={'50-50':0,'proporcional':1,'custom':2}[mode];const opts=document.querySelectorAll('.split-opt');if(idx!=null&&opts[idx])opts[idx].classList.add('active');}
-  document.getElementById('customSplitRow').style.display=mode==='custom'?'flex':'none';
-}
+// Divisão removida — mantido só pra compatibilidade (não faz mais nada visual)
+function setSplitMode(mode){ currentSplitMode=mode||'50-50'; }
 function toggleInstallFields() {
   document.getElementById('installFields').style.display=document.getElementById('txInstall').checked?'':'none';
   updateInstallPreview();
@@ -3597,8 +3577,8 @@ function saveTx() {
     payment,
     cardId:(payment==='credito'?(document.getElementById('txCard').value||null):null),
     type:currentType, person:currentPerson,
-    splitMode:currentPerson==='both'?currentSplitMode:null,
-    splitPct:currentPerson==='both'&&currentSplitMode==='custom'?parseFloat(document.getElementById('txSplitPct').value):null,
+    splitMode:currentPerson==='both'?'50-50':null,
+    splitPct:null,
     note:document.getElementById('txNote').value.trim()||null,
   };
 
