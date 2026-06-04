@@ -2518,14 +2518,17 @@ function bankAvatar(bank, size){
 }
 
 function getCard(id){ return (state.cards||[]).find(c=>c.id===id)||null; }
-// Fatura aberta (ainda acumulando) ou já fechada (esperando pagamento)?
+// Fatura aberta (ainda acumulando) ou já fechada — relativa ao MÊS em visualização.
+// Mês passado = Fechada · mês futuro = Aberta · mês atual = depende do dia de fechamento.
 function cardStatus(card){
-  const today=new Date(); const cd=card.closingDay||10;
-  const lastDay=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const cd=card.closingDay||10;
+  const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
   const dd=Math.min(cd,lastDay);
-  const open=today.getDate()<=dd;
+  const closeDate=new Date(currentYear,currentMonth,dd);
+  const now=new Date(); const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const open=closeDate>=today; // fecha hoje ou no futuro → ainda aberta
   return {open, word:open?'Aberta':'Fechada', color:open?'#3a8dff':'#8892aa',
-    label:'fecha '+String(dd).padStart(2,'0')+' de '+MONTHS_FULL[today.getMonth()].toLowerCase()};
+    label:(open?'fecha ':'fechou ')+String(dd).padStart(2,'0')+' de '+MONTHS_FULL[currentMonth].toLowerCase()};
 }
 
 // Em qual fatura (mês/ano) cai uma compra, dado o dia de fechamento
