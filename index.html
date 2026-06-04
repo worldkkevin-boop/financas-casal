@@ -573,10 +573,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <div class="form-group full" id="assetRFRow" style="display:none"><label class="form-label">Valor aplicado (R$)</label><input class="form-input" id="assetRF" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
     <div class="form-group" id="assetQtyRow"><label class="form-label">Quantidade</label><input class="form-input" id="assetQty" type="number" inputmode="decimal" step="0.0001" placeholder="0"/></div>
     <div class="form-group" id="assetAvgRow"><label class="form-label">Preço médio (R$)</label><input class="form-input" id="assetAvg" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
-    <div class="form-group" id="assetDyRow"><label class="form-label">Dividendos 12m (R$/cota)</label><input class="form-input" id="assetDy" type="number" inputmode="decimal" step="0.01" placeholder="opcional"/></div>
-    <div class="form-group" id="assetCeilRow"><label class="form-label">Preço-teto manual (R$)</label><input class="form-input" id="assetCeil" type="number" inputmode="decimal" step="0.01" placeholder="opcional"/></div>
+    <div class="form-group" id="assetDyRow"><label class="form-label">Dividendos 12m (R$/cota)</label><input class="form-input" id="assetDy" type="number" inputmode="decimal" step="0.0001" placeholder="ex: 3,2754"/></div>
+    <div class="form-group" id="assetDyPctRow"><label class="form-label">ou DY% (12m)</label><input class="form-input" id="assetDyPct" type="number" inputmode="decimal" step="0.01" placeholder="ex: 8,44"/></div>
+    <div class="form-group full" id="assetCeilRow"><label class="form-label">Preço-teto manual (R$)</label><input class="form-input" id="assetCeil" type="number" inputmode="decimal" step="0.01" placeholder="opcional — sobrepõe o cálculo"/></div>
   </div>
-  <div style="font-size:.68rem;color:var(--text3);margin-top:6px">💡 Informe os <strong>dividendos 12m por cota</strong> pra calcular o preço-teto (Bazin), ou ponha um teto manual.</div>
+  <div style="font-size:.68rem;color:var(--text3);margin-top:6px">💡 Preencha <strong>UM</strong> dos dois: dividendos 12m em R$ (ex: 3,2754) <strong>ou</strong> o DY% (ex: 8,44). O app calcula o preço-teto (Bazin). Ou ponha um teto manual.</div>
   <button class="btn-ghost" id="assetResearchBtn" style="width:100%;margin-top:6px;font-size:.78rem;color:var(--cyan);display:none" onclick="openAssetResearch()">🔗 Ver dividendos/indicadores (Status Invest)</button>
   <div class="btn-row" style="margin-top:13px">
     <button class="btn-secondary" onclick="closeAssetModal()">Cancelar</button>
@@ -2659,7 +2660,12 @@ function ensurePortfolio(){ if(!state.portfolio) state.portfolio={assets:[]}; if
 function isRF(a){ return a.class==='renda_fixa'; }
 function assetValue(a){ return isRF(a)?(a.valorRF||0):((a.qty||0)*(a.price||a.avgPrice||0)); }
 function assetInvested(a){ return isRF(a)?(a.valorRF||0):((a.qty||0)*(a.avgPrice||0)); }
-function assetCeiling(a){ if(a.manualCeiling>0) return a.manualCeiling; if(a.dy12>0) return a.dy12/0.06; return 0; } // Bazin: teto = dividendo anual / 6%
+function assetCeiling(a){ // Bazin: teto = dividendo anual / 6%
+  if(a.manualCeiling>0) return a.manualCeiling;
+  if(a.dy12>0) return a.dy12/0.06;
+  if(a.dyPct>0 && a.price>0) return (a.price*a.dyPct/100)/0.06; // DY% × preço = dividendo R$
+  return 0;
+}
 function assetSignal(a){ const c=assetCeiling(a), p=a.price||0; if(!c||!p) return null; return p<=c?{txt:'Comprar',color:'var(--green)'}:{txt:'Esperar',color:'var(--orange)'}; }
 
 function sumDiv12m(d){
@@ -2859,7 +2865,7 @@ function renderArcaCard(){
 let editingAssetId=null;
 function updateAssetFields(){
   const rf=document.getElementById('assetClass').value==='renda_fixa';
-  ['assetTickerRow','assetQtyRow','assetAvgRow','assetDyRow','assetCeilRow'].forEach(id=>document.getElementById(id).style.display=rf?'none':'');
+  ['assetTickerRow','assetQtyRow','assetAvgRow','assetDyRow','assetDyPctRow','assetCeilRow'].forEach(id=>document.getElementById(id).style.display=rf?'none':'');
   document.getElementById('assetRFRow').style.display=rf?'':'none';
   const rb=document.getElementById('assetResearchBtn'); if(rb) rb.style.display=rf?'none':'';
 }
@@ -2888,6 +2894,7 @@ function openAssetModal(id){
   document.getElementById('assetAvg').value=a&&a.avgPrice?a.avgPrice:'';
   document.getElementById('assetRF').value=a&&a.valorRF?a.valorRF:'';
   document.getElementById('assetDy').value=a&&a.dy12?a.dy12:'';
+  document.getElementById('assetDyPct').value=a&&a.dyPct?a.dyPct:'';
   document.getElementById('assetCeil').value=a&&a.manualCeiling?a.manualCeiling:'';
   document.getElementById('btnDeleteAsset').style.display=a?'flex':'none';
   updateAssetFields();
@@ -2911,6 +2918,7 @@ function saveAsset(){
       qty:parseFloat(document.getElementById('assetQty').value)||0,
       avgPrice:parseFloat(document.getElementById('assetAvg').value)||0,
       dy12:parseFloat(document.getElementById('assetDy').value)||0,
+      dyPct:parseFloat(document.getElementById('assetDyPct').value)||0,
       manualCeiling:parseFloat(document.getElementById('assetCeil').value)||0};
   }
   if(editingAssetId){ const a=state.portfolio.assets.find(x=>x.id===editingAssetId); if(a) Object.assign(a,data); }
