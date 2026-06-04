@@ -710,6 +710,7 @@ const CATS_INCOME = [
 
 let state = loadState();
 migrateImportedInstallments();
+migrateSalaryDay();
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let activeTab = 'dashboard';
@@ -759,6 +760,26 @@ function migrateImportedInstallments() {
     });
     if (changed) localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
   } catch(e){ console.error('migrateImportedInstallments', e); }
+}
+// Move salários já lançados pro dia do pagamento (payday). Antes caíam fixo no dia 15.
+function migrateSalaryDay() {
+  try {
+    if (!state || !Array.isArray(state.transactions)) return;
+    const pay = state.payday || 20;
+    let changed = 0;
+    state.transactions.forEach(t=>{
+      if (t.category!=='salario' || !t.date) return;
+      const parts = String(t.date).split('-'); if (parts.length!==3) return;
+      const y=+parts[0], m=+parts[1], day=+parts[2];
+      const lastDay = new Date(y, m, 0).getDate();
+      const want = Math.min(pay, lastDay);
+      if (day !== want) {
+        t.date = parts[0]+'-'+parts[1]+'-'+String(want).padStart(2,'0');
+        changed++;
+      }
+    });
+    if (changed) localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
+  } catch(e){ console.error('migrateSalaryDay', e); }
 }
 function saveState() {
   localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -1409,8 +1430,13 @@ function relançarRecorrentes() {
   const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
   const missing=recurring.filter(t=>!thisDescs.has(t.description));
-  const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-15';
+  const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
   missing.forEach(t=>{
+    // salário cai no dia do pagamento (payday); os demais mantêm o próprio dia do mês
+    const origDay=parseInt((t.date||'').slice(8,10))||15;
+    const wantDay=t.category==='salario'?(state.payday||20):origDay;
+    const day=Math.min(wantDay,lastDay);
+    const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
     state.transactions.push({...t, id:uid(), date, _autoSalary:false, createdAt:new Date().toISOString()});
   });
   saveState();
@@ -2594,6 +2620,7 @@ function parseFatura(){
       // PARCELADO: projeta TODAS as parcelas (1..tot), uma por fatura — inclui histórico já pago
       const cur=parseInt(pm[1]), tot=parseInt(pm[2]);
       const base=invoiceMonthOf(origDate, closing); // mês da 1ª parcela
+      const groupId='imp|'+card.id+'|'+normDesc(desc)+'|'+tot; // mesmo grupo p/ excluir todas de uma vez
       for(let i=1;i<=tot;i++){
         let tm=base.m+(i-1), ty=base.y+Math.floor(tm/12); tm=((tm%12)+12)%12;
         // Ancora no dia de fechamento (≤ closing) pra invoiceKeyFor NÃO empurrar de novo p/ a fatura seguinte
@@ -2604,7 +2631,7 @@ function parseFatura(){
         sig.add(k);
         state.transactions.push({id:uid(),description:desc||'Compra cartão',amount:val,date,category:cat,
           payment:'credito',cardId:card.id,type:'expense',person:owner,splitMode:owner==='both'?'50-50':null,
-          splitPct:null,note:null,recurring:null,installCur:i,installTot:tot,imported:true,
+          splitPct:null,note:null,recurring:null,installCur:i,installTot:tot,installGroup:groupId,imported:true,
           createdBy:getCurrentUser(),createdAt:new Date().toISOString()});
         added++;
       }
@@ -2689,22 +2716,31 @@ function editTx(id) {
   document.getElementById('addModal').classList.add('open');
 }
 function closeModal() { document.getElementById('addModal').classList.remove('open'); }
+// Irmãs da mesma compra parcelada: por grupo (manual/importado novo) OU por
+// assinatura cartão+descrição+nº de parcelas (importações antigas sem grupo).
+function installSiblings(t){
+  if(!t||!t.installTot) return t?[t]:[];
+  const sig=(t.cardId||'')+'|'+normDesc(t.description)+'|'+t.installTot;
+  return state.transactions.filter(x=> x.installTot===t.installTot && (
+    (t.installGroup && x.installGroup===t.installGroup) ||
+    ((x.cardId||'')+'|'+normDesc(x.description)+'|'+x.installTot)===sig
+  ));
+}
 function deleteTxCurrent() {
   if (!editingTxId) return;
   const id=editingTxId;
   const t=state.transactions.find(x=>x.id===id);
-  if (t&&t.installGroup) {
-    const all=state.transactions.filter(x=>x.installGroup===t.installGroup);
-    if (all.length>1) {
-      openConfirm('Lançamento parcelado ('+t.installCur+'/'+t.installTot+'). O que deseja excluir?', ()=>{
-        state.transactions=state.transactions.filter(x=>x.installGroup!==t.installGroup);
-        saveState(); closeModal(); showToast('🗑 Parcelamento excluído','info'); renderCurrentTab(); updateBudgetBadge();
-      }, {okLabel:'Todas as '+all.length, altLabel:'Só esta', onAlt:()=>{
-        state.transactions=state.transactions.filter(x=>x.id!==id);
-        saveState(); closeModal(); showToast('🗑 Parcela excluída','info'); renderCurrentTab(); updateBudgetBadge();
-      }});
-      return;
-    }
+  const sibs = t ? installSiblings(t) : [];
+  if (t && t.installTot && sibs.length>1) {
+    openConfirm('Compra parcelada ('+t.installCur+'/'+t.installTot+'). O que deseja excluir?', ()=>{
+      const ids=new Set(sibs.map(x=>x.id));
+      state.transactions=state.transactions.filter(x=>!ids.has(x.id));
+      saveState(); closeModal(); showToast('🗑 Parcelamento excluído ('+sibs.length+'x)','info'); renderCurrentTab(); updateBudgetBadge();
+    }, {okLabel:'Todas ('+sibs.length+')', altLabel:'Só esta', onAlt:()=>{
+      state.transactions=state.transactions.filter(x=>x.id!==id);
+      saveState(); closeModal(); showToast('🗑 Parcela excluída','info'); renderCurrentTab(); updateBudgetBadge();
+    }});
+    return;
   }
   openConfirm('Excluir este lançamento?', ()=>{
     state.transactions=state.transactions.filter(x=>x.id!==id);
