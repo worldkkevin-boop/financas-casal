@@ -577,6 +577,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <div class="form-group" id="assetCeilRow"><label class="form-label">Preço-teto manual (R$)</label><input class="form-input" id="assetCeil" type="number" inputmode="decimal" step="0.01" placeholder="opcional"/></div>
   </div>
   <div style="font-size:.68rem;color:var(--text3);margin-top:6px">💡 Informe os <strong>dividendos 12m por cota</strong> pra calcular o preço-teto (Bazin), ou ponha um teto manual.</div>
+  <button class="btn-ghost" id="assetResearchBtn" style="width:100%;margin-top:6px;font-size:.78rem;color:var(--cyan);display:none" onclick="openAssetResearch()">🔗 Ver dividendos/indicadores (Status Invest)</button>
   <div class="btn-row" style="margin-top:13px">
     <button class="btn-secondary" onclick="closeAssetModal()">Cancelar</button>
     <button class="btn-danger" style="display:none;padding:9px 12px" id="btnDeleteAsset" onclick="deleteAsset()">🗑</button>
@@ -2772,7 +2773,7 @@ function renderPortfolio(){
           +'<div><div style="color:var(--text3);font-size:.62rem">Preço atual</div><div style="font-weight:600">'+(a.price?fmt(a.price):'—')+'</div></div>'
           +'<div><div style="color:var(--text3);font-size:.62rem">Preço-teto</div><div style="font-weight:600">'+(ceil?fmt(ceil):'—')+'</div></div>'
           +'<div style="margin-left:auto;text-align:right"><div style="color:var(--text3);font-size:.62rem">Viés</div><div style="font-weight:700;color:'+(sig?sig.color:'var(--text3)')+'">'+(sig?sig.txt:'—')+'</div></div>'
-          +'</div><div style="font-size:.64rem;color:var(--text3);margin-top:3px">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)'+(a.pe?' · P/L '+a.pe.toFixed(1)+((a.pe>=5&&a.pe<=10)?' <span style="color:var(--green)">✓</span>':''):'')+'</div>';
+          +'</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px"><div style="font-size:.64rem;color:var(--text3)">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)'+(a.pe?' · P/L '+a.pe.toFixed(1)+((a.pe>=5&&a.pe<=10)?' <span style="color:var(--green)">✓</span>':''):'')+'</div>'+(researchUrl(a.ticker,a.class)?'<a onclick="event.stopPropagation()" href="'+researchUrl(a.ticker,a.class)+'" target="_blank" rel="noopener" style="font-size:.64rem;color:var(--cyan);white-space:nowrap">🔗 ver teto</a>':'')+'</div>';
       }
       html+='</div>';
     });
@@ -2860,6 +2861,20 @@ function updateAssetFields(){
   const rf=document.getElementById('assetClass').value==='renda_fixa';
   ['assetTickerRow','assetQtyRow','assetAvgRow','assetDyRow','assetCeilRow'].forEach(id=>document.getElementById(id).style.display=rf?'none':'');
   document.getElementById('assetRFRow').style.display=rf?'':'none';
+  const rb=document.getElementById('assetResearchBtn'); if(rb) rb.style.display=rf?'none':'';
+}
+// Link de pesquisa de dividendos/indicadores por ativo (Status Invest / busca)
+function researchUrl(ticker, cls){
+  const t=(ticker||'').trim().toLowerCase(); if(!t) return null;
+  if(cls==='fii') return 'https://statusinvest.com.br/fundos-imobiliarios/'+encodeURIComponent(t);
+  if(cls==='acao_int') return 'https://www.google.com/search?q='+encodeURIComponent(t+' dividend yield stock');
+  if(cls==='cripto') return 'https://www.google.com/search?q='+encodeURIComponent(t+' preço cotação');
+  return 'https://statusinvest.com.br/acoes/'+encodeURIComponent(t);
+}
+function openAssetResearch(){
+  const t=document.getElementById('assetTicker').value, c=document.getElementById('assetClass').value;
+  const u=researchUrl(t,c); if(!u){ showToast('Digite o código do ativo primeiro','info'); return; }
+  window.open(u,'_blank','noopener');
 }
 function openAssetModal(id){
   ensurePortfolio(); editingAssetId=id||null;
