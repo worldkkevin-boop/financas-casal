@@ -2442,7 +2442,8 @@ function renderDream(){
       ${saved>0?'<button class="btn-secondary" style="padding:9px 13px" onclick="openUsd(\'withdraw\')">↩ Retirar</button>':''}
     </div>
     <div class="setting-row" style="margin-top:6px"><div><div class="setting-label">Meta total ${isUSD?'(US$)':'(R$)'}</div><div class="setting-sub">Quanto querem ter guardado</div></div><input class="setting-input" type="number" inputmode="decimal" value="${target||''}" placeholder="${isUSD?'Ex: 30000':'Ex: 60000'}" onchange="setDreamTarget(+this.value)"/></div>
-    ${isUSD?`<div class="setting-row" style="padding:7px 0"><div><div class="setting-label">Cotação do dólar hoje (R$)</div><div class="setting-sub">Pra ver o equivalente e o ganho</div></div><input class="setting-input" type="number" inputmode="decimal" step="0.01" value="${rate||''}" placeholder="Ex: 5,40" onchange="setDreamRate(+this.value)"/></div>`:''}
+    ${isUSD?`<div class="setting-row" style="padding:7px 0"><div><div class="setting-label">Cotação do dólar hoje (R$)</div><div class="setting-sub">Pra ver o equivalente e o ganho</div></div><input class="setting-input" type="number" inputmode="decimal" step="0.01" value="${rate||''}" placeholder="Ex: 5,40" onchange="setDreamRate(+this.value)"/></div>
+    <button class="btn-ghost" style="width:100%;margin-top:4px;font-size:.78rem;color:var(--cyan)" onclick="updateUsdRateNow()">🔄 Buscar cotação de hoje (online)</button>`:''}
   </div>
 
   ${renderDollarHistory()}
@@ -2469,6 +2470,25 @@ function renderDream(){
 function setDreamTitle(v){ ensureDream(); state.dream.title=(v||'').trim()||dreamDef().title; saveState(); }
 function setDreamTarget(v){ ensureDream(); state.dream.targetUSD=v||0; saveState(); renderCurrentTab(); }
 function setDreamRate(v){ ensureDream(); state.dream.usdRate=v||0; saveState(); renderCurrentTab(); }
+// Busca a cotação USD→BRL na AwesomeAPI (gratuita, sem chave). Precisa de internet.
+async function fetchUsdRate(silent){
+  try{
+    const res=await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL',{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const j=await res.json();
+    const bid=parseFloat(j&&j.USDBRL&&j.USDBRL.bid);
+    if(!bid||isNaN(bid)) throw new Error('sem cotação');
+    return Math.round(bid*100)/100;
+  }catch(e){
+    if(!silent) showToast('Não consegui buscar a cotação (precisa de internet).','error',4000);
+    return null;
+  }
+}
+async function updateUsdRateNow(){
+  showToast('Buscando cotação do dólar...','info',1500);
+  const r=await fetchUsdRate();
+  if(r){ ensureDream(); state.dream.usdRate=r; saveState(); showToast('💵 Dólar hoje: '+brl2(r),'success'); renderCurrentTab(); }
+}
 function setDreamDate(v){ ensureDream(); state.dream.targetDate=v||null; saveState(); renderCurrentTab(); }
 function toggleMission(id){
   ensureDream();
