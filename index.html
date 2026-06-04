@@ -80,10 +80,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .topbar-logo{font-family:var(--font-d);font-weight:800;font-size:1rem}
 .topbar-logo span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .topbar-right{display:flex;align-items:center;gap:9px}
-.month-nav{display:flex;align-items:center;gap:5px}
-.month-nav button{background:var(--surface2);border:none;border-radius:7px;color:var(--text2);cursor:pointer;font-size:.95rem;width:28px;height:28px;display:flex;align-items:center;justify-content:center;transition:background .2s}
-.month-nav button:hover{background:var(--border2)}
-.month-label{font-family:var(--font-d);font-size:.78rem;font-weight:700;min-width:70px;text-align:center}
+.month-nav{display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:999px;padding:3px}
+.month-nav button{background:transparent;border:1.5px solid var(--border2);border-radius:50%;color:var(--text);cursor:pointer;font-size:.82rem;width:26px;height:26px;display:flex;align-items:center;justify-content:center;transition:background .2s,border-color .2s;flex:none}
+.month-nav button:hover{background:var(--border2);border-color:var(--border3)}
+.month-nav button:active{transform:scale(.9)}
+.month-label{font-family:var(--font-d);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;min-width:56px;text-align:center}
+.month-label .m{font-size:.8rem;font-weight:800}
+.month-label .y{font-size:.58rem;font-weight:600;color:var(--text3);margin-top:2px}
 .avatar-pair{display:flex}
 .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:800;border:2px solid var(--bg)}
 .avatar.p1{background:linear-gradient(135deg,var(--p1),var(--accent2));color:#fff}
@@ -407,9 +410,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <div class="topbar-logo">💰 Nós <span>Dois</span></div>
     <div class="topbar-right">
       <div class="month-nav">
-        <button onclick="changeMonth(-1)">‹</button>
-        <span class="month-label" id="monthLabel"></span>
-        <button onclick="changeMonth(1)">›</button>
+        <button onclick="changeMonth(-1)" aria-label="Mês anterior">←</button>
+        <div class="month-label" id="monthLabel"></div>
+        <button onclick="changeMonth(1)" aria-label="Próximo mês">→</button>
       </div>
       <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
       <div class="avatar-pair">
@@ -989,7 +992,7 @@ function updateAvatars() {
   if(document.getElementById('btnP1')) document.getElementById('btnP1').textContent=state.p1name;
   if(document.getElementById('btnP2')) document.getElementById('btnP2').textContent=state.p2name;
 }
-function updateMonthLabel() { document.getElementById('monthLabel').textContent=MONTHS[currentMonth]+' '+currentYear; }
+function updateMonthLabel() { document.getElementById('monthLabel').innerHTML='<span class="m">'+MONTHS_FULL[currentMonth]+'</span><span class="y">'+currentYear+'</span>'; }
 function changeMonth(dir) {
   currentMonth+=dir;
   if (currentMonth>11){currentMonth=0;currentYear++;}
