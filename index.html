@@ -824,7 +824,7 @@ function defaultState() {
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
     cardReserve:{balance:0,entries:[],paid:[]},payday:20,paydayCycle:false,theme:'dark',coupleId:null,mode:null,
-    portfolio:{assets:[]},brapiToken:''};
+    portfolio:{assets:[]},brapiToken:'',wallets:{p1:0,p2:0}};
 }
 function isSolo(){ return state.mode==='solo'; }
 // Usuários antigos (já têm dados) entram como casal sem precisar escolher
@@ -899,7 +899,7 @@ async function pushToFirebase() {
       settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,paydayCycle:state.paydayCycle||false,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||''},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
-      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]},
+      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]}, wallets:state.wallets||{p1:0,p2:0},
       transactions:state.transactions, goals:state.goals,
       members: firebase.firestore.FieldValue.arrayUnion(uid),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -926,6 +926,7 @@ function subscribeFirebase() {
     if (data.bills) state.bills = data.bills;
     if (data.cardReserve) state.cardReserve = data.cardReserve;
     if (data.portfolio) state.portfolio = data.portfolio;
+    if (data.wallets) state.wallets = data.wallets;
     if (data.transactions) state.transactions = data.transactions;
     if (data.goals) state.goals = data.goals;
     localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -1309,8 +1310,28 @@ function faturasDoMes(m,y){
   return (state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c,mo,yr),0);
 }
 function portfolioTotal(){ ensurePortfolio(); return (state.portfolio.assets||[]).reduce((s,a)=>s+assetValue(a),0); }
+function ensureWallets(){ if(!state.wallets) state.wallets={p1:0,p2:0}; }
+function walletsTotal(){ ensureWallets(); return (state.wallets.p1||0)+(isSolo()?0:(state.wallets.p2||0)); }
+function setWallet(p){
+  ensureWallets();
+  const nome=p==='p1'?state.p1name:state.p2name;
+  openInputModal('💵 Saldo em conta — '+nome,[
+    {key:'v',label:'Quanto '+nome+' tem em conta (R$)',type:'number',step:'0.01',value:state.wallets[p]||'',placeholder:'0,00'}
+  ], vals=>{ state.wallets[p]=Math.max(0,parseFloat(vals.v)||0); saveState(); renderCurrentTab(); });
+}
+function renderWalletsCard(){
+  ensureWallets();
+  const total=walletsTotal();
+  const row=(p,cls)=>'<div onclick="setWallet(\''+p+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer"><span class="chip '+cls+'">'+esc(p==='p1'?state.p1name:state.p2name)+'</span><span style="font-family:var(--font-d);font-weight:700">'+fmt(state.wallets[p]||0)+' <span style="opacity:.5;font-size:.8rem">✏️</span></span></div>';
+  let html='<div class="card fade-up"><div class="card-title">💵 Em conta'+(isSolo()?'':' (de cada um)')+'<span style="font-size:.9rem;color:var(--cyan);font-family:var(--font-d);font-weight:800">'+fmt(total)+'</span></div>';
+  html+=row('p1','p1');
+  if(!isSolo()) html+=row('p2','p2');
+  html+='<div style="font-size:.68rem;color:var(--text3);text-align:center;margin-top:7px">Toque no valor pra atualizar</div></div>';
+  return html;
+}
 function patrimonioTotal(){
   ensureReserve();
+  const emConta=walletsTotal();           // dinheiro vivo (saldo em conta de cada um)
   const invest=portfolioTotal();          // investido = valor da Carteira (ações/FII/RF/dólar-ativos)
   const caixinhas=(state.goals||[]).reduce((s,g)=>s+(g.saved||0),0);
   const d=state.dream||{};
@@ -1318,7 +1339,7 @@ function patrimonioTotal(){
   const dollarBRL=(d.currency==='BRL')?(d.savedUSD||0):((d.savedUSD||0)*(d.usdRate||0));
   const reserva=state.cardReserve.balance||0;
   const faturas=faturasDoMes();
-  return { invest, caixinhas, dollarBRL, reserva, faturas, total: invest+caixinhas+dollarBRL+reserva-faturas };
+  return { emConta, invest, caixinhas, dollarBRL, reserva, faturas, total: emConta+invest+caixinhas+dollarBRL+reserva-faturas };
 }
 function togglePatrimonio(){
   const h=localStorage.getItem('hidePatrimonio')==='1';
@@ -1442,8 +1463,9 @@ function renderDashboard() {
       <button onclick="togglePatrimonio()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.05rem;opacity:.75;padding:0">${hidePat?'🙈':'👁'}</button>
     </div>
     <div class="hero-amount ${pat.total>=0?'pos':'neg'}">${hidePat?'<span style="font-size:1.7rem;letter-spacing:.06em">R$ ••••</span>':fmtHero(pat.total)}</div>
-    <div class="hero-sub">Carteira + metas + sonho − faturas</div>
+    <div class="hero-sub">Em conta + carteira + metas + sonho − faturas</div>
     ${hidePat?'':`<div class="hero-stats" style="grid-template-columns:1fr 1fr">
+      <div class="hero-stat"><div class="hero-stat-lbl">💵 Em conta</div><div class="hero-stat-val">${fmt(pat.emConta)}</div></div>
       <div class="hero-stat" onclick="navTo('portfolio')" style="cursor:pointer"><div class="hero-stat-lbl">📈 Carteira</div><div class="hero-stat-val">${fmt(pat.invest)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💰 Caixinhas/Metas</div><div class="hero-stat-val">${fmt(pat.caixinhas)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">${state.dream?(dreamCurrency()==='USD'?'💵 Dólar':dreamDef().icon+' Sonho'):'💵 Dólar'}</div><div class="hero-stat-val">${fmt(pat.dollarBRL)}</div></div>
@@ -1461,6 +1483,8 @@ function renderDashboard() {
       <div class="dash-tile"><div class="dt-lbl">Contas a pagar</div><div class="dt-val" style="color:var(--orange)">${fmt(toPay)}</div></div>
     </div>
   </div>
+
+  ${renderWalletsCard()}
 
   ${salaryAlert.length?`<div style="background:#ffd16614;border:1px solid #ffd16633;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;align-items:center;gap:9px">
     <span style="font-size:1rem">📥</span>
