@@ -2579,10 +2579,10 @@ function parseFatura(){
     const cat=guessCat(desc);
     const pm=(p[2]||'').match(/\(?(\d{1,2})\/(\d{1,2})\)?/);
     if(pm){
-      // PARCELADO: projeta da parcela atual até a última, uma por fatura
+      // PARCELADO: projeta TODAS as parcelas (1..tot), uma por fatura — inclui histórico já pago
       const cur=parseInt(pm[1]), tot=parseInt(pm[2]);
       const base=invoiceMonthOf(origDate, closing); // mês da 1ª parcela
-      for(let i=cur;i<=tot;i++){
+      for(let i=1;i<=tot;i++){
         let tm=base.m+(i-1), ty=base.y+Math.floor(tm/12); tm=((tm%12)+12)%12;
         // Ancora no dia de fechamento (≤ closing) pra invoiceKeyFor NÃO empurrar de novo p/ a fatura seguinte
         const dd=Math.min(closing, new Date(ty,tm+1,0).getDate());
