@@ -709,6 +709,7 @@ const CATS_INCOME = [
 ];
 
 let state = loadState();
+migrateImportedInstallments();
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let activeTab = 'dashboard';
@@ -734,6 +735,30 @@ function defaultState() {
 function loadState() {
   try { return JSON.parse(localStorage.getItem('nosDoiFinancas')||'null')||defaultState(); }
   catch { return defaultState(); }
+}
+// Conserta parcelas importadas com o bug do "empurrão duplo" do dia de fechamento.
+// O mês de calendário gravado já é o da fatura certa; só o dia (>fechamento) fazia o
+// invoiceKeyFor jogar a parcela pra fatura seguinte. Clampar o dia ≤ fechamento resolve.
+function migrateImportedInstallments() {
+  try {
+    if (!state || !Array.isArray(state.transactions)) return;
+    const cardClose = {};
+    (state.cards||[]).forEach(c=>{ cardClose[c.id]=c.closingDay||10; });
+    let changed = 0;
+    state.transactions.forEach(t=>{
+      if (!t.imported || !t.installTot || !t.cardId || !t.date) return;
+      const closing = cardClose[t.cardId]; if (!closing) return;
+      const parts = String(t.date).split('-'); if (parts.length!==3) return;
+      const y=+parts[0], m=+parts[1], day=+parts[2];
+      if (day > closing) {
+        const lastDay = new Date(y, m, 0).getDate();
+        const nd = Math.min(closing, lastDay);
+        t.date = parts[0]+'-'+parts[1]+'-'+String(nd).padStart(2,'0');
+        changed++;
+      }
+    });
+    if (changed) localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
+  } catch(e){ console.error('migrateImportedInstallments', e); }
 }
 function saveState() {
   localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -2559,7 +2584,8 @@ function parseFatura(){
       const base=invoiceMonthOf(origDate, closing); // mês da 1ª parcela
       for(let i=cur;i<=tot;i++){
         let tm=base.m+(i-1), ty=base.y+Math.floor(tm/12); tm=((tm%12)+12)%12;
-        const dd=Math.min(base.day, new Date(ty,tm+1,0).getDate());
+        // Ancora no dia de fechamento (≤ closing) pra invoiceKeyFor NÃO empurrar de novo p/ a fatura seguinte
+        const dd=Math.min(closing, new Date(ty,tm+1,0).getDate());
         const date=fdate(ty,tm,dd), mk=date.slice(0,7);
         const k=card.id+'|'+normDesc(desc)+'|'+i+'/'+tot+'|'+mk;
         if(sig.has(k)){ skipped++; continue; }
