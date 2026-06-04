@@ -2670,22 +2670,33 @@ function sumDiv12m(d){
   }catch(e){ return 0; }
 }
 async function fetchOneQuote(ticker, token){
-  // 1) BRAPI (com token) — confiável, com CORS, e traz dividendos/P-L
+  let lastErr='';
+  // 1) BRAPI — primeiro só o PREÇO (o plano grátis libera). Sem params extras p/ não quebrar.
   if(token){
     try{
-      const url='https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token)+'&dividends=true&fundamental=true';
-      const r=await fetch(url,{cache:'no-store'});
-      if(r.ok){ const j=await r.json(); const d=j&&j.results&&j.results[0];
-        if(d&&d.regularMarketPrice) return {price:d.regularMarketPrice, name:d.longName||d.shortName, dy12:sumDiv12m(d), pe:(parseFloat(d.priceEarnings)||null)}; }
-    }catch(e){}
-  }
-  // 2) Yahoo (sem token) — fallback de preço; às vezes bloqueado por CORS
+      const r=await fetch('https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token),{cache:'no-store'});
+      const j=await r.json().catch(()=>null);
+      const d=j&&j.results&&j.results[0];
+      if(r.ok && d && d.regularMarketPrice){
+        const out={price:d.regularMarketPrice, name:d.longName||d.shortName, dy12:0, pe:(parseFloat(d.priceEarnings)||null)};
+        // 2) tentar dividendos à parte (pode não vir no grátis) — NÃO quebra o preço
+        try{
+          const r2=await fetch('https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token)+'&dividends=true',{cache:'no-store'});
+          const j2=await r2.json().catch(()=>null);
+          if(r2.ok && j2 && j2.results && j2.results[0]){ const dd=sumDiv12m(j2.results[0]); if(dd>0) out.dy12=dd; }
+        }catch(e){}
+        return out;
+      }
+      lastErr=(j&&j.message)?j.message:('HTTP '+r.status);
+    }catch(e){ lastErr=(e&&e.message)||'erro de rede'; }
+  } else { lastErr='sem token'; }
+  // 3) Yahoo (sem token) — fallback de preço; às vezes bloqueado por CORS
   try{
     const r=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(ticker)+'.SA?interval=1d&range=1d',{cache:'no-store'});
     if(r.ok){ const j=await r.json(); const m=j&&j.chart&&j.chart.result&&j.chart.result[0]&&j.chart.result[0].meta;
       if(m&&m.regularMarketPrice) return {price:m.regularMarketPrice, name:m.longName, dy12:0, pe:null}; }
   }catch(e){}
-  return null;
+  return {error:lastErr||'falhou'};
 }
 async function fetchQuotes(){
   ensurePortfolio();
@@ -2693,7 +2704,7 @@ async function fetchQuotes(){
   if(!tickers.length){ showToast('Adicione ativos com código (ex: TAEE11) primeiro','info'); return; }
   const token=(state.brapiToken||'').trim();
   showToast('Atualizando cotações...','info',1500);
-  let ok=0, fail=0;
+  let ok=0, fail=0, lastErr='';
   for(const t of tickers){
     const q=await fetchOneQuote(t, token);
     if(q&&q.price){
@@ -2704,10 +2715,11 @@ async function fetchQuotes(){
         if(q.pe!=null) a.pe=Math.round(q.pe*100)/100;
       });
       ok++;
-    } else fail++;
+    } else { fail++; if(q&&q.error) lastErr=q.error; }
   }
   saveState(); renderCurrentTab();
-  showToast(ok?('✅ '+ok+' cotação(ões) atualizada(s)'+(fail?' · '+fail+' não achei':'')):'Não consegui atualizar. Confira o token BRAPI / internet.', ok?'success':'error',5000);
+  if(ok) showToast('✅ '+ok+' cotação(ões) atualizada(s)'+(fail?' · '+fail+' falhou':''),'success',5000);
+  else showToast('Falhou: '+(lastErr||'sem detalhes')+'. (Ex.: token inválido, limite, ou bloqueio do navegador)','error',7000);
 }
 function setBrapiToken(v){ state.brapiToken=(v||'').trim(); saveState(); showToast(state.brapiToken?'🔑 Token salvo':'Token removido','success'); }
 
