@@ -2847,6 +2847,25 @@ function saveTx() {
     installGroup:orig?(orig.installGroup||null):null,
     createdBy:getCurrentUser(), createdAt:new Date().toISOString(),
   });
+  // Editando uma parcela com irmãs → perguntar se aplica em todas
+  if (editingTxId && orig && orig.installTot) {
+    const sibs=installSiblings(orig);
+    if (sibs.length>1) {
+      const applyOne=()=>{
+        const idx=state.transactions.findIndex(t=>t.id===editingTxId); if(idx>=0) state.transactions[idx]=tx;
+        saveState(); closeModal(); showToast('✅ Parcela atualizada!','success'); renderCurrentTab(); updateBudgetBadge();
+      };
+      const applyAll=()=>{
+        // aplica os campos editados (e o valor) em todas; mantém data/parcela/grupo de cada uma
+        sibs.forEach(s=>Object.assign(s, base, {amount}));
+        saveState(); closeModal(); showToast('✅ '+sibs.length+' parcelas atualizadas!','success'); renderCurrentTab(); updateBudgetBadge();
+      };
+      openConfirm('Compra parcelada ('+orig.installCur+'/'+orig.installTot+'). Aplicar a edição em quais?', applyAll,
+        {okLabel:'Todas ('+sibs.length+')', altLabel:'Só esta', onAlt:applyOne});
+      return;
+    }
+  }
+
   if (editingTxId) { const idx=state.transactions.findIndex(t=>t.id===editingTxId); if (idx>=0) state.transactions[idx]=tx; else state.transactions.push(tx); }
   else state.transactions.push(tx);
   saveState(); closeModal();
