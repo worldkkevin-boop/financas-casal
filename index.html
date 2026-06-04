@@ -1227,6 +1227,14 @@ function cycleLabelShort(m, y) {
   const f=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
   return f(start)+'–'+f(last);
 }
+// Data válida DENTRO do mês/ciclo em visualização (hoje se for o atual; senão último dia do ciclo).
+// Evita criar lançamento com data fora do ciclo no modo pagamento.
+function cycleDate() {
+  const {start,end}=cycleRange(currentMonth,currentYear);
+  const now=new Date();
+  const dt=(now>=start&&now<end)?now:new Date(end.getTime()-86400000);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
 function getMonthTx(m,y) {
   const mo=m!==undefined?m:currentMonth, yr=y!==undefined?y:currentYear;
   const {start,end}=cycleRange(mo,yr);
@@ -1855,9 +1863,7 @@ function investLeftover(){
   const saldo=monthSaldo(currentMonth,currentYear);
   if(saldo<=0){ showToast('Não há sobra neste mês','info'); return; }
   openConfirm('Investir a sobra de '+MONTHS_FULL[currentMonth]+' ('+fmt(saldo)+')? Vira um aporte e sai do saldo do mês.', ()=>{
-    const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
-    const dd=String(Math.min(new Date().getDate(),lastDay)).padStart(2,'0');
-    const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-'+dd;
+    const date=cycleDate();
     // aporte = transferência (não é gasto de consumo): some do saldo, não entra em categorias
     state.transactions.push({id:uid(),description:'Aporte investimentos',amount:saldo,date,category:'outros',payment:'ted',
       type:'expense',person:'both',splitMode:'50-50',splitPct:null,note:null,recurring:null,installCur:null,installTot:null,
@@ -1925,9 +1931,7 @@ function toggleBill(catId,id){
   } else {
     // marcar paga: cria um lançamento de gasto
     const pay=(amount)=>{
-      const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
-      const dd=String(Math.min(new Date().getDate(),lastDay)).padStart(2,'0');
-      const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-'+dd;
+      const date=cycleDate();
       const bp=b.person||'both';
       const tx={id:uid(),description:b.name,amount,date,category:catId,payment:'pix',cardId:null,
         type:'expense',person:bp,splitMode:bp==='both'?'50-50':null,splitPct:null,note:null,recurring:null,
