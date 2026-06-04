@@ -2661,21 +2661,29 @@ function assetInvested(a){ return isRF(a)?(a.valorRF||0):((a.qty||0)*(a.avgPrice
 function assetCeiling(a){ if(a.manualCeiling>0) return a.manualCeiling; if(a.dy12>0) return a.dy12/0.06; return 0; } // Bazin: teto = dividendo anual / 6%
 function assetSignal(a){ const c=assetCeiling(a), p=a.price||0; if(!c||!p) return null; return p<=c?{txt:'Comprar',color:'var(--green)'}:{txt:'Esperar',color:'var(--orange)'}; }
 
+function sumDiv12m(d){
+  // soma dividendos pagos nos últimos 12 meses (R$ por cota), se a BRAPI mandar
+  try{
+    const cd=d&&d.dividendsData&&d.dividendsData.cashDividends; if(!Array.isArray(cd)) return 0;
+    const lim=new Date(); lim.setFullYear(lim.getFullYear()-1);
+    return cd.reduce((s,x)=>{ const dt=new Date(x.paymentDate||x.lastDatePrior||x.approvedOn||0); const r=parseFloat(x.rate)||0; return (dt>=lim)?s+r:s; },0);
+  }catch(e){ return 0; }
+}
 async function fetchOneQuote(ticker, token){
-  // 1) BRAPI (com token) — confiável e com CORS liberado
+  // 1) BRAPI (com token) — confiável, com CORS, e traz dividendos/P-L
   if(token){
     try{
-      const url='https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token);
+      const url='https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token)+'&dividends=true&fundamental=true';
       const r=await fetch(url,{cache:'no-store'});
       if(r.ok){ const j=await r.json(); const d=j&&j.results&&j.results[0];
-        if(d&&d.regularMarketPrice) return {price:d.regularMarketPrice, name:d.longName||d.shortName}; }
+        if(d&&d.regularMarketPrice) return {price:d.regularMarketPrice, name:d.longName||d.shortName, dy12:sumDiv12m(d), pe:(parseFloat(d.priceEarnings)||null)}; }
     }catch(e){}
   }
-  // 2) Yahoo (sem token) — fallback; às vezes bloqueado por CORS
+  // 2) Yahoo (sem token) — fallback de preço; às vezes bloqueado por CORS
   try{
     const r=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(ticker)+'.SA?interval=1d&range=1d',{cache:'no-store'});
     if(r.ok){ const j=await r.json(); const m=j&&j.chart&&j.chart.result&&j.chart.result[0]&&j.chart.result[0].meta;
-      if(m&&m.regularMarketPrice) return {price:m.regularMarketPrice, name:m.longName}; }
+      if(m&&m.regularMarketPrice) return {price:m.regularMarketPrice, name:m.longName, dy12:0, pe:null}; }
   }catch(e){}
   return null;
 }
@@ -2692,6 +2700,8 @@ async function fetchQuotes(){
       state.portfolio.assets.filter(a=>(a.ticker||'').toUpperCase()===t).forEach(a=>{
         a.price=Math.round(q.price*100)/100; a.lastUpdate=new Date().toISOString();
         if(q.name&&!a.name) a.name=q.name;
+        if(q.dy12>0) a.dy12=Math.round(q.dy12*100)/100; // teto automático (Bazin)
+        if(q.pe!=null) a.pe=Math.round(q.pe*100)/100;
       });
       ok++;
     } else fail++;
@@ -2717,6 +2727,8 @@ function renderPortfolio(){
     <div class="hero-amount ${gain>=0?'pos':'neg'}">${fmtHero(totalVal)}</div>
     <div class="hero-sub">${totalInv>0?'Aplicado '+fmt(totalInv)+' · '+(gain>=0?'+':'')+fmt(gain)+' ('+(totalInv>0?((gain/totalInv*100).toFixed(1)):'0')+'%)':'Adicione seus ativos abaixo'}</div>
   </div>`;
+
+  html+=renderArcaCard();
 
   // barras de alocação
   if(byClass.length){
@@ -2748,7 +2760,7 @@ function renderPortfolio(){
           +'<div><div style="color:var(--text3);font-size:.62rem">Preço atual</div><div style="font-weight:600">'+(a.price?fmt(a.price):'—')+'</div></div>'
           +'<div><div style="color:var(--text3);font-size:.62rem">Preço-teto</div><div style="font-weight:600">'+(ceil?fmt(ceil):'—')+'</div></div>'
           +'<div style="margin-left:auto;text-align:right"><div style="color:var(--text3);font-size:.62rem">Viés</div><div style="font-weight:700;color:'+(sig?sig.color:'var(--text3)')+'">'+(sig?sig.txt:'—')+'</div></div>'
-          +'</div><div style="font-size:.64rem;color:var(--text3);margin-top:3px">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)</div>';
+          +'</div><div style="font-size:.64rem;color:var(--text3);margin-top:3px">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)'+(a.pe?' · P/L '+a.pe.toFixed(1)+((a.pe>=5&&a.pe<=10)?' <span style="color:var(--green)">✓</span>':''):'')+'</div>';
       }
       html+='</div>';
     });
@@ -2767,6 +2779,69 @@ function renderPortfolio(){
 
   html+='<div style="font-size:.7rem;color:var(--text3);text-align:center;padding:4px 10px 16px;line-height:1.5">⚠️ O "preço-teto" usa o método Bazin (dividendos ÷ 6%) e o "viés" é automático — é só um <strong>guia de estudo</strong>, <strong>não é recomendação de investimento</strong>. Decisões são de vocês.</div>';
   return html;
+}
+// --- MÉTODO ARCA (4 pilares de 25%) ---
+const ARCA=[
+  {cls:'acao_br',    label:'Ações',            icon:'📊'},
+  {cls:'fii',        label:'Imóveis (FIIs)',   icon:'🏢'},
+  {cls:'renda_fixa', label:'Caixa (R. Fixa)',  icon:'🛡️'},
+  {cls:'acao_int',   label:'Internacional',    icon:'🌎'},
+];
+function arcaVals(){ ensurePortfolio(); return ARCA.map(p=>({...p, val:state.portfolio.assets.filter(a=>a.class===p.cls).reduce((s,a)=>s+assetValue(a),0)})); }
+// Como dividir o aporte pra reequilibrar em 25% cada (compra primeiro quem está atrás)
+function arcaAporteSplit(aporte){
+  const vals=arcaVals(); const totalNow=vals.reduce((s,p)=>s+p.val,0); const after=totalNow+aporte; const target=after/4;
+  const needs=vals.map(p=>Math.max(0,target-p.val)); const sumNeed=needs.reduce((a,b)=>a+b,0);
+  let alloc;
+  if(sumNeed<=0) alloc=vals.map(()=>aporte/4);
+  else if(sumNeed<=aporte){ const extra=(aporte-sumNeed)/4; alloc=needs.map(n=>n+extra); }
+  else alloc=needs.map(n=>aporte*(n/sumNeed));
+  return vals.map((p,i)=>({...p, add:alloc[i]}));
+}
+function setCustoVida(v){ ensurePortfolio(); state.portfolio.custoVida=Math.max(0,+v||0); saveState(); renderCurrentTab(); }
+function setAporte(v){ ensurePortfolio(); state.portfolio.aporte=Math.max(0,+v||0); saveState(); renderCurrentTab(); }
+function renderArcaCard(){
+  ensurePortfolio();
+  const p=state.portfolio;
+  const vals=arcaVals(); const total=vals.reduce((s,x)=>s+x.val,0);
+  if(total<=0 && !(p.custoVida>0)) return ''; // só aparece quando há algo
+  // reserva de emergência (6x custo de vida) — comparada ao pilar Caixa
+  const custo=p.custoVida||0, resvTarget=custo*6, caixa=vals.find(v=>v.cls==='renda_fixa').val;
+  const resvPct=resvTarget>0?Math.min(100,caixa/resvTarget*100):0;
+  const aporte=p.aporte||0; const split=aporte>0?arcaAporteSplit(aporte):null;
+
+  let h='<div class="card fade-up" style="border-color:#6c8eff33">';
+  h+='<div class="card-title">🎯 Método ARCA — equilíbrio 25%</div>';
+  // pilares
+  vals.forEach(x=>{
+    const pct=total>0?x.val/total*100:0;
+    const diff=pct-25;
+    const tag=Math.abs(diff)<1.5?'<span style="color:var(--green)">no ponto ✓</span>':(diff>0?'<span style="color:var(--orange)">+'+diff.toFixed(0)+'% acima</span>':'<span style="color:var(--cyan)">'+diff.toFixed(0)+'% abaixo</span>');
+    h+='<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:3px"><span style="font-weight:600">'+x.icon+' '+x.label+'</span><span style="font-size:.72rem">'+pct.toFixed(0)+'% · '+tag+'</span></div>'
+      +'<div class="budget-bar" style="position:relative"><div class="budget-fill" style="width:'+pct.toFixed(1)+'%;background:'+assetClass(x.cls).color+'"></div><div style="position:absolute;top:-2px;bottom:-2px;left:25%;width:2px;background:var(--text3);opacity:.6"></div></div></div>';
+  });
+  h+='<div style="font-size:.66rem;color:var(--text3);text-align:right;margin-top:-3px">a linha tracejada é a meta de 25%</div>';
+
+  // reserva de emergência
+  h+='<div class="divider"></div>';
+  h+='<div class="setting-row" style="padding:6px 0"><div><div class="setting-label">🛟 Reserva de emergência</div><div class="setting-sub">6 meses do seu custo de vida</div></div><input class="setting-input" type="number" inputmode="decimal" value="'+(custo||'')+'" placeholder="custo/mês" onchange="setCustoVida(this.value)"/></div>';
+  if(resvTarget>0){
+    const ok=caixa>=resvTarget;
+    h+='<div class="budget-bar"><div class="budget-fill" style="width:'+resvPct.toFixed(0)+'%;background:'+(ok?'var(--green)':'var(--orange)')+'"></div></div>'
+      +'<div style="font-size:.74rem;text-align:center;margin-top:5px;color:'+(ok?'var(--green)':'var(--orange)')+'">'+(ok?'✅ Reserva completa ('+fmt(caixa)+')':'Faltam '+fmt(resvTarget-caixa)+' de '+fmt(resvTarget)+' — priorize o Caixa antes de investir mais')+'</div>';
+  }
+
+  // planejador de aporte
+  h+='<div class="divider"></div>';
+  h+='<div class="setting-row" style="padding:6px 0"><div><div class="setting-label">💸 Aporte deste mês</div><div class="setting-sub">Quanto vai investir agora</div></div><input class="setting-input" type="number" inputmode="decimal" value="'+(aporte||'')+'" placeholder="0,00" onchange="setAporte(this.value)"/></div>';
+  if(split){
+    h+='<div style="font-size:.72rem;color:var(--text3);margin-bottom:5px">Sugestão pra reequilibrar (compra primeiro quem está atrás):</div>';
+    split.forEach(s=>{ if(s.add<0.5) return;
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)"><span style="font-size:.82rem">'+s.icon+' '+s.label+'</span><span style="font-family:var(--font-d);font-weight:700;color:var(--green)">'+fmt(s.add)+'</span></div>';
+    });
+  }
+  h+='</div>';
+  return h;
 }
 let editingAssetId=null;
 function updateAssetFields(){
