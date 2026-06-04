@@ -619,6 +619,30 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 </div></div>
 
 <script>
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  NÓS DOIS — FINANÇAS · MAPA DO CÓDIGO (use Ctrl+F nos nomes) ║
+   ╠══════════════════════════════════════════════════════════╣
+   ║  FIREBASE CONFIG ....... configuração do Firebase           ║
+   ║  ESTADO / STORAGE ...... defaultState, loadState, saveState ║
+   ║      migrateImportedInstallments / migrateSalaryDay         ║
+   ║  FIREBASE .............. push/subscribe/init (sync casal)    ║
+   ║  PIN / AUTH ............ tela de senha                       ║
+   ║  APP INIT .............. arranque do app                     ║
+   ║  HELPERS ............... fmt, esc, datas, faturasDoMes...    ║
+   ║  TOAST ................. notificações (rodapé)               ║
+   ║  RECURRING ............. recorrentes / relançar salário      ║
+   ║  DASHBOARD ............. tela inicial (patrimônio)           ║
+   ║  TRANSACTIONS .......... lista de lançamentos               ║
+   ║  SPLIT ................. divisão do casal                    ║
+   ║  BUDGET ................ orçamentos / planejador de salário  ║
+   ║  GOALS / CAIXINHAS ..... metas                              ║
+   ║  SONHO AMERICANO ....... roadmap de missões + meta em US$    ║
+   ║  ANNUAL ................ gráfico anual                       ║
+   ║  SETTINGS .............. configurações (payday, etc.)       ║
+   ║  CARTÕES DE CRÉDITO .... faturas + IMPORTAR (parseFatura)    ║
+   ║  TX MODAL .............. criar/editar lançamento (saveTx)    ║
+   ║  SERVICE WORKER / INIT . PWA + arranque final               ║
+   ╚══════════════════════════════════════════════════════════╝ */
 
 // ============================================================
 // FIREBASE CONFIG — preencha com seus dados do Firebase Console
@@ -708,6 +732,9 @@ const CATS_INCOME = [
   {id:'outros_r',name:'Outros',icon:'💰',color:'#8892aa'},
 ];
 
+// ============================================================
+// ESTADO / STORAGE — estado global + salvar/carregar + migrações
+// ============================================================
 let state = loadState();
 migrateImportedInstallments();
 migrateSalaryDay();
