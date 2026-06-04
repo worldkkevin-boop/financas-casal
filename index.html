@@ -124,12 +124,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .hero-stat{background:#ffffff07;border-radius:9px;padding:9px 11px}
 [data-theme="light"] .hero-stat{background:#00000007}
 .dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.dash-tile{background:var(--surface2);border-radius:var(--radius-sm);padding:11px 12px}
+.dash-tile{background:var(--surface2);border-radius:var(--radius-sm);padding:11px 12px;min-width:0;overflow:hidden}
 .dt-lbl{font-size:.7rem;color:var(--text3);margin-bottom:3px}
-.dt-val{font-family:var(--font-d);font-weight:800;font-size:1.02rem}
+.dt-val{font-family:var(--font-d);font-weight:800;font-size:1rem;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 4px;line-height:1.15}
 .hero-stat-lbl{font-size:.68rem;color:var(--text3);margin-bottom:2px}
 .hero-stat-val{font-family:var(--font-d);font-weight:700;font-size:.95rem}
-.trend{font-size:.68rem;font-weight:600;margin-left:4px}
+.trend{font-size:.66rem;font-weight:600;white-space:nowrap}
 .trend.up{color:var(--red)}.trend.down{color:var(--green)}.trend.same{color:var(--text3)}
 
 /* CARDS */
@@ -815,6 +815,8 @@ migrateSalaryDay();
 migrateMode();
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
+// Se "mês começa no pagamento", o mês atual pode ser o anterior (antes do dia do pagamento)
+(function(){ const c=currentCycleMonth(); currentMonth=c.m; currentYear=c.y; })();
 let activeTab = 'dashboard';
 let editingTxId = null;
 let currentType = 'expense';
@@ -833,7 +835,7 @@ function defaultState() {
   return {pin:'1234',p1name:'Eu',p2name:'Ela',p1income:0,p2income:0,
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
-    cardReserve:{balance:0,entries:[],paid:[]},payday:20,theme:'dark',coupleId:null,mode:null,
+    cardReserve:{balance:0,entries:[],paid:[]},payday:20,paydayCycle:false,theme:'dark',coupleId:null,mode:null,
     portfolio:{assets:[]},brapiToken:''};
 }
 function isSolo(){ return state.mode==='solo'; }
@@ -1097,7 +1099,16 @@ function updateAvatars() {
   if(document.getElementById('btnP1')) document.getElementById('btnP1').textContent=state.p1name;
   if(document.getElementById('btnP2')) document.getElementById('btnP2').textContent=state.p2name;
 }
-function updateMonthLabel() { document.getElementById('monthLabel').innerHTML='<span class="m">'+MONTHS_FULL[currentMonth]+'</span><span class="y">'+currentYear+'</span>'; }
+function updateMonthLabel() {
+  const sub = state.paydayCycle ? cycleLabelShort(currentMonth,currentYear) : currentYear;
+  document.getElementById('monthLabel').innerHTML='<span class="m">'+MONTHS_FULL[currentMonth]+'</span><span class="y">'+sub+'</span>';
+}
+function togglePaydayCycle() {
+  state.paydayCycle=!state.paydayCycle; saveState();
+  const c=currentCycleMonth(); currentMonth=c.m; currentYear=c.y; // reposiciona no ciclo atual
+  updateMonthLabel(); renderCurrentTab();
+  showToast(state.paydayCycle?'🗓️ Mês começa no dia '+(state.payday||20):'🗓️ Mês normal (dia 1)','success');
+}
 function changeMonth(dir) {
   currentMonth+=dir;
   if (currentMonth>11){currentMonth=0;currentYear++;}
@@ -1190,10 +1201,37 @@ function getCat(id,type) {
   const list=type==='income'?CATS_INCOME:CATS_EXPENSE;
   return list.find(c=>c.id===id)||{name:id,icon:'💬',color:'#8892aa'};
 }
+// Janela de datas do "mês" m/y: calendário normal OU ciclo do pagamento (dia X ao dia X-1)
+function cycleRange(m, y) {
+  if (!state.paydayCycle) {
+    return { start:new Date(y, m, 1, 0,0,0), end:new Date(y, m+1, 1, 0,0,0) };
+  }
+  const pay=Math.max(1, Math.min(31, state.payday||20));
+  const sd=Math.min(pay, new Date(y, m+1, 0).getDate());      // dia do pagamento no mês m
+  const ed=Math.min(pay, new Date(y, m+2, 0).getDate());      // dia do pagamento no mês seguinte
+  return { start:new Date(y, m, sd, 0,0,0), end:new Date(y, m+1, ed, 0,0,0) };
+}
+// Em qual "mês financeiro" estamos hoje
+function currentCycleMonth() {
+  const now=new Date(); let m=now.getMonth(), y=now.getFullYear();
+  if (state.paydayCycle) {
+    const pay=Math.max(1, Math.min(31, state.payday||20));
+    if (now.getDate() < pay) { m--; if(m<0){ m=11; y--; } }
+  }
+  return { m, y };
+}
+// Rótulo do período (ex: 20/05–19/06) — só no modo pagamento
+function cycleLabelShort(m, y) {
+  const {start,end}=cycleRange(m,y);
+  const last=new Date(end.getTime()-86400000);
+  const f=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+  return f(start)+'–'+f(last);
+}
 function getMonthTx(m,y) {
   const mo=m!==undefined?m:currentMonth, yr=y!==undefined?y:currentYear;
+  const {start,end}=cycleRange(mo,yr);
   return state.transactions.filter(t=>{
-    const d=new Date(t.date+'T12:00:00'); return d.getMonth()===mo&&d.getFullYear()===yr;
+    const d=new Date(t.date+'T12:00:00'); return d>=start && d<end;
   });
 }
 function trendArrow(cur,prev) {
@@ -3049,6 +3087,7 @@ function renderSettings() {
     </div>`:''}`}
     <div class="divider"></div>
     <div class="setting-row"><div><div class="setting-label">Dia do pagamento</div><div class="setting-sub">O salário é lançado nesse dia do mês</div></div><input class="setting-input" type="number" inputmode="numeric" min="1" max="31" value="${state.payday||20}" onchange="saveSetting('payday',Math.min(31,Math.max(1,parseInt(this.value)||20)))"/></div>
+    <div class="setting-row"><div><div class="setting-label">Mês começa no dia do pagamento</div><div class="setting-sub">${state.paydayCycle?('Ativo — o mês vai do dia '+(state.payday||20)+' ao dia '+(state.payday||20)+' do mês seguinte'):'Mês normal (dia 1 ao fim). Ative pra alinhar com o salário.'}</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="togglePaydayCycle()">${state.paydayCycle?'✓ Ativo':'Ativar'}</button></div>
     <div class="divider"></div>
     <div class="setting-row"><div><div class="setting-label">Modo de uso</div><div class="setting-sub">${isSolo()?'🧍 Solo — só você':'💑 Casal — vocês dois'}</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="toggleMode()">Trocar p/ ${isSolo()?'Casal 💑':'Solo 🧍'}</button></div>
   </div>
