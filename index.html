@@ -218,6 +218,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .cc-status .dot{width:7px;height:7px;border-radius:50%}
 
 /* SONHO */
+.dream-choices{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+.dream-choice{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--surface2);border:1.5px solid var(--border);border-radius:14px;padding:11px 6px;cursor:pointer;transition:border-color .15s,background .15s;color:var(--text)}
+.dream-choice:active{transform:scale(.97)}
+.dream-choice.active{border-color:var(--accent);background:linear-gradient(135deg,#6c8eff22,#a78bfa14)}
+.dream-choice .dc-ic{font-size:1.4rem;line-height:1}
+.dream-choice .dc-lb{font-size:.8rem;font-weight:700}
+.dream-choice .dc-sb{font-size:.64rem;color:var(--text3)}
 .dream-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#3b3f8f 0%,#6c8eff 55%,#a78bfa 100%);border-radius:20px;padding:22px 18px;margin-bottom:12px;text-align:center;color:#fff}
 .dream-hero-glow{position:absolute;top:-40px;right:-30px;width:170px;height:170px;background:radial-gradient(circle,#ffffff33,transparent 70%);pointer-events:none}
 .dream-title-input{background:transparent;border:none;border-bottom:1px solid transparent;color:#fff;font-family:var(--font-d);font-weight:800;font-size:1.45rem;text-align:center;width:100%;margin:2px 0;padding:2px}
@@ -1173,7 +1180,8 @@ function patrimonioTotal(){
   const invest=state.investments.balance||0;
   const caixinhas=(state.goals||[]).reduce((s,g)=>s+(g.saved||0),0);
   const d=state.dream||{};
-  const dollarBRL=(d.savedUSD||0)*(d.usdRate||0);
+  // valor do sonho em R$: se a meta é em real, é direto; se em dólar, converte pela cotação
+  const dollarBRL=(d.currency==='BRL')?(d.savedUSD||0):((d.savedUSD||0)*(d.usdRate||0));
   const reserva=state.cardReserve.balance||0;
   const faturas=faturasDoMes();
   return { invest, caixinhas, dollarBRL, reserva, faturas, total: invest+caixinhas+dollarBRL+reserva-faturas };
@@ -1300,11 +1308,11 @@ function renderDashboard() {
       <button onclick="togglePatrimonio()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.05rem;opacity:.75;padding:0">${hidePat?'🙈':'👁'}</button>
     </div>
     <div class="hero-amount ${pat.total>=0?'pos':'neg'}">${hidePat?'<span style="font-size:1.7rem;letter-spacing:.06em">R$ ••••</span>':fmtHero(pat.total)}</div>
-    <div class="hero-sub">Investimentos + metas + dólar − faturas</div>
+    <div class="hero-sub">Investimentos + metas + sonho − faturas</div>
     ${hidePat?'':`<div class="hero-stats" style="grid-template-columns:1fr 1fr">
       <div class="hero-stat"><div class="hero-stat-lbl">💹 Investido</div><div class="hero-stat-val">${fmt(pat.invest)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💰 Caixinhas/Metas</div><div class="hero-stat-val">${fmt(pat.caixinhas)}</div></div>
-      <div class="hero-stat"><div class="hero-stat-lbl">💵 Dólar</div><div class="hero-stat-val">${fmt(pat.dollarBRL)}</div></div>
+      <div class="hero-stat"><div class="hero-stat-lbl">${state.dream?(dreamCurrency()==='USD'?'💵 Dólar':dreamDef().icon+' Sonho'):'💵 Dólar'}</div><div class="hero-stat-val">${fmt(pat.dollarBRL)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">🐷 Reserva fatura</div><div class="hero-stat-val">${fmt(pat.reserva)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💳 Faturas</div><div class="hero-stat-val" style="color:var(--red)">${pat.faturas>0?'-'+fmt(pat.faturas):fmt(0)}</div></div>
     </div>`}
@@ -1345,10 +1353,10 @@ function renderDashboard() {
   ${renderReserveCard()}
 
   ${state.dream?`<div class="card fade-up" style="background:linear-gradient(135deg,#3b3f8f22,#a78bfa11);border-color:#6c8eff33">
-    <div class="card-title">✈️ Sonho Americano<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('dream')">abrir →</button></div>
+    <div class="card-title">${(state.dream.icon||dreamDef().icon)} ${esc(state.dream.title||dreamDef().title)}<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('dream')">abrir →</button></div>
     <div style="display:flex;gap:12px">
       <div style="flex:1"><div style="font-size:.68rem;color:var(--text3)">Missões</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.15rem;color:var(--accent)">${dreamPct}%</div><div class="budget-bar" style="margin-top:4px"><div class="budget-fill" style="width:${dreamPct}%;background:var(--accent)"></div></div></div>
-      <div style="flex:1"><div style="font-size:.68rem;color:var(--text3)">Meta em dólar</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.15rem;color:var(--green)">${fmtUSD(state.dream.savedUSD||0)}</div><div class="budget-bar" style="margin-top:4px"><div class="budget-fill" style="width:${dreamUsdPct.toFixed(0)}%;background:var(--green)"></div></div></div>
+      <div style="flex:1"><div style="font-size:.68rem;color:var(--text3)">${dreamCurrency()==='USD'?'Meta em dólar':'Guardado'}</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.15rem;color:var(--green)">${dreamMoney(state.dream.savedUSD||0)}</div><div class="budget-bar" style="margin-top:4px"><div class="budget-fill" style="width:${dreamUsdPct.toFixed(0)}%;background:var(--green)"></div></div></div>
     </div>
   </div>`:''}
 
@@ -1663,7 +1671,7 @@ function renderSavingsCard(){
 
   const recipients=[];
   goals.forEach(g=>recipients.push({id:g.id,type:'goal',icon:g.icon||(g.type==='caixinha'?'💰':'🎯'),name:g.name,prio:g.priority||'media'}));
-  if(dollarActive) recipients.push({id:'__dollar',type:'dollar',icon:'💵',name:'Meta em dólar',prio:(d&&d.priority)||'media'});
+  if(dollarActive) recipients.push({id:'__dollar',type:'dollar',icon:(dreamCurrency()==='USD'?'💵':dreamDef().icon),name:(dreamCurrency()==='USD'?'Meta em dólar':esc(d.title||dreamDef().title)),prio:(d&&d.priority)||'media'});
 
   let html='<div class="card" style="border-color:#34d48a33">'
     +'<div class="card-title">✈️ Sonho & Poupança</div>'
@@ -2093,9 +2101,10 @@ function deleteGoal(id) {
 }
 
 // ============================================================
-// SONHO AMERICANO — roadmap de missões + meta em dólar
+// SONHOS — catálogo de roadmaps (escolha do casal) + meta
+// currency: 'USD' (dólar) ou 'BRL' (real)
 // ============================================================
-const DREAM_PHASES = [
+const DREAM_USA_PHASES = [
   {id:0, icon:'🌱', name:'Fase 1 — Fundação do Sonho', sub:'Primeiros meses: decidir juntos, alinhar e começar a guardar'},
   {id:1, icon:'📚', name:'Fase 2 — Inglês & Documentos', sub:'A base de tudo: idioma e papelada em ordem'},
   {id:2, icon:'📘', name:'Fase 3 — Visto & Aplicação', sub:'O processo oficial de imigração'},
@@ -2147,16 +2156,156 @@ const DREAM_MISSIONS = [
   {phase:3, title:'Despedida da família e amigos ❤️', desc:'Um momento importante antes da grande mudança.'},
   {phase:3, title:'Fazer as malas e embarcar 🗽', desc:'O grande dia chegou. Boa viagem rumo ao sonho americano!'},
 ];
-const DREAM_HABITS = ['Comprar dólar este mês 💵','Estudar inglês toda semana 📚','Praticar conversação em inglês 🗣️','Revisar o orçamento do mês 📊'];
 
+// CASA PRÓPRIA — COMPRAR
+const DREAM_COMPRAR_PHASES = [
+  {id:0, icon:'🌱', name:'Fase 1 — Planejamento', sub:'Decidir juntos o que querem e montar o orçamento'},
+  {id:1, icon:'💰', name:'Fase 2 — Juntar a entrada', sub:'Guardar o dinheiro e organizar o crédito'},
+  {id:2, icon:'🔍', name:'Fase 3 — Busca & Negociação', sub:'Encontrar, avaliar e fechar o imóvel'},
+  {id:3, icon:'🔑', name:'Fase 4 — Compra & Mudança', sub:'Financiamento, cartório e as chaves na mão'},
+];
+const DREAM_COMPRAR_MISSIONS = [
+  {phase:0, title:'Definir juntos o tipo de imóvel e a região', desc:'Casa ou apto? Quantos quartos? Em qual bairro/cidade?'},
+  {phase:0, title:'Definir a data-alvo da compra', desc:'Escolher um mês/ano realista e marcar aqui no app.'},
+  {phase:0, title:'Descobrir o preço médio dos imóveis na região', desc:'Pesquisar em sites e imobiliárias pra ter um valor base.'},
+  {phase:0, title:'Montar o orçamento total (entrada + custos)', desc:'Lembrar de ITBI e cartório (~5% do imóvel).'},
+  {phase:0, title:'Definir quanto guardar por mês', desc:'Quebrar a entrada em parcelas mensais possíveis.'},
+  {phase:0, title:'Abrir uma aplicação só pra entrada da casa', desc:'Separar o dinheiro da casa do resto.'},
+  {phase:0, title:'Garantir a reserva de emergência antes', desc:'Não usar a reserva de imprevistos pra entrada.'},
+  {phase:1, title:'Guardar a primeira parte da entrada 🏦', desc:'Todo começo conta — comecem já!'},
+  {phase:1, title:'Limpar o nome e quitar dívidas caras', desc:'Cartão e cheque especial primeiro.'},
+  {phase:1, title:'Melhorar o score de crédito', desc:'Contas em dia e CPF regular ajudam na aprovação.'},
+  {phase:1, title:'Atingir 10% do valor guardado', desc:'Primeiro grande marco da entrada.'},
+  {phase:1, title:'Atingir 20% do valor (entrada cheia)', desc:'Quanto maior a entrada, menor o financiamento.'},
+  {phase:1, title:'Verificar direito ao FGTS / Minha Casa Minha Vida', desc:'Pode abater bastante na entrada ou nos juros.'},
+  {phase:1, title:'Pesquisar e simular o financiamento', desc:'Comparar taxas em Caixa, bancos e correspondentes.'},
+  {phase:2, title:'Listar os imóveis candidatos', desc:'Montar uma lista com os que cabem no orçamento.'},
+  {phase:2, title:'Visitar os imóveis selecionados', desc:'Ver pessoalmente, de dia, com calma.'},
+  {phase:2, title:'Conferir a documentação do imóvel e do vendedor', desc:'Matrícula, IPTU, certidões — evitar dor de cabeça.'},
+  {phase:2, title:'Fazer a vistoria do imóvel', desc:'Conferir estrutura, infiltração, instalações.'},
+  {phase:2, title:'Negociar o preço 💬', desc:'Proposta com base na pesquisa que vocês fizeram.'},
+  {phase:2, title:'Escolher o imóvel 🏡', desc:'A decisão grande — parabéns ao casal!'},
+  {phase:3, title:'Aprovar o crédito no banco', desc:'Análise de renda e do imóvel.'},
+  {phase:3, title:'Assinar o contrato / financiamento', desc:'Ler tudo com atenção antes de assinar.'},
+  {phase:3, title:'Pagar ITBI e registrar em cartório', desc:'Só é seu de verdade depois do registro.'},
+  {phase:3, title:'Pegar as chaves 🔑', desc:'O grande momento!'},
+  {phase:3, title:'Planejar a mudança e os móveis', desc:'Organizar o que comprar e o que levar.'},
+  {phase:3, title:'Mudança! 🎉🏡', desc:'Bem-vindos ao lar de vocês!'},
+];
+// CASA PRÓPRIA — CONSTRUIR
+const DREAM_CONSTRUIR_PHASES = [
+  {id:0, icon:'🌱', name:'Fase 1 — Terreno & Projeto', sub:'O terreno, o projeto e as licenças'},
+  {id:1, icon:'💰', name:'Fase 2 — Orçamento & Recursos', sub:'Quanto custa e de onde vem o dinheiro'},
+  {id:2, icon:'🧱', name:'Fase 3 — A Obra', sub:'Da fundação ao acabamento'},
+  {id:3, icon:'🔑', name:'Fase 4 — Final & Mudança', sub:'Os últimos passos até morar'},
+];
+const DREAM_CONSTRUIR_MISSIONS = [
+  {phase:0, title:'Definir juntos o tipo e o tamanho da casa', desc:'Quantos quartos, andares, estilo.'},
+  {phase:0, title:'Definir a data-alvo de morar', desc:'Escolher um prazo realista e marcar no app.'},
+  {phase:0, title:'Escolher e comprar o terreno', desc:'Localização, topografia, vizinhança.'},
+  {phase:0, title:'Conferir a documentação do terreno', desc:'Matrícula, IPTU, se pode construir ali.'},
+  {phase:0, title:'Contratar arquiteto/engenheiro', desc:'Projeto bem feito economiza muito na obra.'},
+  {phase:0, title:'Aprovar o projeto na prefeitura', desc:'Planta aprovada conforme as regras locais.'},
+  {phase:0, title:'Conseguir o alvará de construção', desc:'Licença pra começar a obra legalmente.'},
+  {phase:1, title:'Fazer o orçamento da obra (material + mão de obra)', desc:'Detalhar etapa por etapa.'},
+  {phase:1, title:'Definir quanto guardar por mês', desc:'Construir aos poucos cabe melhor no bolso.'},
+  {phase:1, title:'Abrir uma aplicação só pra obra', desc:'Separar o dinheiro da construção.'},
+  {phase:1, title:'Reservar ~20% pra imprevistos', desc:'Obra quase sempre passa do orçamento.'},
+  {phase:1, title:'Cotar materiais com 3 fornecedores', desc:'Comparar preço e prazo de entrega.'},
+  {phase:1, title:'Avaliar financiamento de construção', desc:'Caixa e bancos têm linhas específicas.'},
+  {phase:2, title:'Contratar o mestre de obras / empreiteira', desc:'Referências e contrato por escrito.'},
+  {phase:2, title:'Fundação e alicerce 🧱', desc:'A base de tudo — bem feita.'},
+  {phase:2, title:'Levantar paredes e estrutura', desc:'A casa começa a tomar forma.'},
+  {phase:2, title:'Telhado / cobertura', desc:'Proteger a obra das chuvas.'},
+  {phase:2, title:'Instalações (água, luz e esgoto)', desc:'Hidráulica e elétrica dentro das paredes.'},
+  {phase:2, title:'Reboco e contrapiso', desc:'Preparar as superfícies pro acabamento.'},
+  {phase:2, title:'Acabamento (piso, pintura, louças)', desc:'A parte que dá a cara da casa.'},
+  {phase:2, title:'Portas, janelas e armários', desc:'Esquadrias e marcenaria.'},
+  {phase:3, title:'Ligação definitiva de água e luz', desc:'Tirar do provisório de obra.'},
+  {phase:3, title:'Vistoria final / habite-se', desc:'Documento que libera a moradia.'},
+  {phase:3, title:'Limpeza pós-obra', desc:'Deixar tudo pronto pra morar.'},
+  {phase:3, title:'Comprar móveis e eletrodomésticos', desc:'Mobiliar o novo lar.'},
+  {phase:3, title:'Mudança! 🎉🏠', desc:'A casa que vocês construíram, enfim!'},
+];
+
+// VEÍCULO
+const DREAM_VEICULO_PHASES = [
+  {id:0, icon:'🌱', name:'Fase 1 — Planejamento', sub:'Escolher o veículo e montar o orçamento'},
+  {id:1, icon:'💰', name:'Fase 2 — Juntar o dinheiro', sub:'Guardar e decidir como pagar'},
+  {id:2, icon:'🔍', name:'Fase 3 — Busca & Avaliação', sub:'Encontrar, testar e avaliar'},
+  {id:3, icon:'🔑', name:'Fase 4 — Compra', sub:'Fechar, transferir e rodar'},
+];
+const DREAM_VEICULO_MISSIONS = [
+  {phase:0, title:'Definir o tipo de veículo', desc:'Carro ou moto? Novo ou usado? Pra qual uso?'},
+  {phase:0, title:'Definir a data-alvo da compra', desc:'Escolher um prazo realista e marcar no app.'},
+  {phase:0, title:'Pesquisar a faixa de preço (tabela FIPE)', desc:'Saber quanto custa o modelo desejado.'},
+  {phase:0, title:'Montar o orçamento (veículo + documentação + seguro)', desc:'Não esquecer transferência, IPVA e seguro.'},
+  {phase:0, title:'Definir quanto guardar por mês', desc:'Quebrar o valor em parcelas mensais.'},
+  {phase:0, title:'Abrir uma aplicação só pro veículo', desc:'Separar esse dinheiro do resto.'},
+  {phase:1, title:'Guardar a primeira parte 🏦', desc:'Começar a meta já!'},
+  {phase:1, title:'Decidir: à vista ou financiado', desc:'À vista evita juros; financiado exige cuidado.'},
+  {phase:1, title:'Limpar o nome / melhorar o score', desc:'Importante se for financiar.'},
+  {phase:1, title:'Atingir 50% do valor guardado', desc:'Quanto mais entrada, menos juros.'},
+  {phase:1, title:'Simular financiamento ou consórcio', desc:'Comparar taxas e parcelas, se for o caso.'},
+  {phase:2, title:'Listar os modelos candidatos', desc:'Montar uma lista dentro do orçamento.'},
+  {phase:2, title:'Pesquisar em concessionárias e particulares', desc:'Comparar preços e condições.'},
+  {phase:2, title:'Fazer test drive nos escolhidos', desc:'Sentir o veículo antes de decidir.'},
+  {phase:2, title:'Checar o histórico do veículo', desc:'Multas, débitos, leilão, sinistro (se usado).'},
+  {phase:2, title:'Levar a um mecânico de confiança', desc:'Vistoria independente, se for usado.'},
+  {phase:2, title:'Negociar o preço 💬', desc:'Usar a pesquisa a favor de vocês.'},
+  {phase:3, title:'Fechar a compra', desc:'À vista ou contrato de financiamento.'},
+  {phase:3, title:'Fazer a transferência no Detran', desc:'Documento no nome de vocês.'},
+  {phase:3, title:'Contratar o seguro do veículo', desc:'Proteção desde o primeiro dia.'},
+  {phase:3, title:'Pegar a chave 🔑🚗', desc:'Boa estrada — conquistado por vocês!'},
+];
+
+const DREAMS = {
+  usa:        { id:'usa',        title:'Sonho Americano',        icon:'✈️', currency:'USD',
+                habits:['Comprar dólar este mês 💵','Estudar inglês toda semana 📚','Praticar conversação em inglês 🗣️','Revisar o orçamento do mês 📊'],
+                phases:DREAM_USA_PHASES,        missions:DREAM_MISSIONS },
+  casa_comprar:{ id:'casa_comprar', title:'Casa Própria',        icon:'🏡', currency:'BRL',
+                habits:['Guardar dinheiro da casa este mês 🏦','Revisar o orçamento do mês 📊','Pesquisar imóveis 🔍','Evitar dívidas novas 🚫'],
+                phases:DREAM_COMPRAR_PHASES,    missions:DREAM_COMPRAR_MISSIONS },
+  casa_construir:{ id:'casa_construir', title:'Casa Própria',     icon:'🏠', currency:'BRL',
+                habits:['Guardar dinheiro da obra este mês 🏦','Revisar o orçamento do mês 📊','Cotar materiais 🧱','Acompanhar a obra 👷'],
+                phases:DREAM_CONSTRUIR_PHASES,  missions:DREAM_CONSTRUIR_MISSIONS },
+  veiculo:    { id:'veiculo',    title:'Veículo',               icon:'🚗', currency:'BRL',
+                habits:['Guardar dinheiro do veículo este mês 🏦','Revisar o orçamento do mês 📊','Pesquisar modelos/preços 🔍','Evitar dívidas novas 🚫'],
+                phases:DREAM_VEICULO_PHASES,    missions:DREAM_VEICULO_MISSIONS },
+};
+const DREAM_CHOICES = [
+  {type:'usa',           icon:'✈️', label:'Sonho Americano',  sub:'Emigrar pros EUA'},
+  {type:'casa_comprar',  icon:'🏡', label:'Casa — Comprar',   sub:'Comprar pronta'},
+  {type:'casa_construir',icon:'🏠', label:'Casa — Construir',  sub:'Construir do zero'},
+  {type:'veiculo',       icon:'🚗', label:'Veículo',          sub:'Carro ou moto'},
+];
+function dreamDef(){ return DREAMS[(state.dream&&state.dream.type)||'usa']||DREAMS.usa; }
+function dreamCurrency(){ return (state.dream&&state.dream.currency)||dreamDef().currency||'USD'; }
+// Formata na moeda do sonho (dólar p/ EUA, real p/ casa)
+function dreamMoney(v){ return dreamCurrency()==='USD'?fmtUSD(v):fmt(v); }
+// Monta as missões/hábitos de um tipo de sonho (mantém valores guardados se já existir)
+function seedDream(type){
+  const def=DREAMS[type]||DREAMS.usa; const old=state.dream||{};
+  state.dream={
+    type:def.id, title:old.title&&old.type===def.id?old.title:def.title, icon:def.icon, currency:def.currency,
+    targetUSD:old.targetUSD||0, savedUSD:old.savedUSD||0, usdDeposits:old.usdDeposits||[],
+    usdRate:old.usdRate||0, targetDate:old.targetDate||null,
+    missions:def.missions.map((m,i)=>({id:'m'+i,phase:m.phase,title:m.title,desc:m.desc,done:false,doneDate:null})),
+    habits:def.habits.map(h=>({id:uid(),title:h,doneMonths:[]})), seeded:true };
+  saveState();
+}
+function switchDream(type){
+  if(!DREAMS[type]) return;
+  if(state.dream && state.dream.type===type){ return; }
+  openConfirm('Trocar para "'+DREAMS[type].title+'"? As missões e hábitos serão substituídos pelos desse sonho. O valor que vocês já guardaram é mantido.', ()=>{
+    seedDream(type); showToast(DREAMS[type].icon+' Sonho alterado!','success'); renderCurrentTab();
+  }, {okLabel:'Trocar'});
+}
 function ensureDream(){
-  if (!state.dream){
-    state.dream={ title:'Sonho Americano', targetUSD:0, savedUSD:0, usdDeposits:[], targetDate:null,
-      missions:DREAM_MISSIONS.map((m,i)=>({id:'m'+i,phase:m.phase,title:m.title,desc:m.desc,done:false,doneDate:null})),
-      habits:DREAM_HABITS.map((h)=>({id:uid(),title:h,doneMonths:[]})), seeded:true };
-    saveState();
-  }
+  if (!state.dream){ seedDream('usa'); }
   const d=state.dream;
+  if(!d.type) d.type='usa';
+  if(!d.currency) d.currency=dreamDef().currency||'USD';
   if(!d.missions) d.missions=[];
   if(!d.habits) d.habits=[];
   if(!d.usdDeposits) d.usdDeposits=[];
@@ -2188,11 +2337,17 @@ function renderDream(){
   const rec=(target>saved&&ml&&ml>0)?(target-saved)/ml:0;
   const monthKey=currentYear+'-'+(currentMonth+1);
   const habits=d.habits;
-  const groups=DREAM_PHASES.map(p=>({id:p.id,icon:p.icon,name:p.name,sub:p.sub,items:missions.filter(m=>m.phase===p.id)}));
+  const phases=dreamDef().phases;
+  const isUSD=dreamCurrency()==='USD';
+  const groups=phases.map(p=>({id:p.id,icon:p.icon,name:p.name,sub:p.sub,items:missions.filter(m=>m.phase===p.id)}));
   const customItems=missions.filter(m=>m.phase>=99);
   if(customItems.length) groups.push({id:99,icon:'⭐',name:'Missões personalizadas',sub:'Criadas por vocês',items:customItems});
 
+  const chooser=`<div class="dream-choices">${DREAM_CHOICES.map(ch=>
+    '<button class="dream-choice'+(((d.type||'usa')===ch.type)?' active':'')+'" onclick="switchDream(\''+ch.type+'\')"><span class="dc-ic">'+ch.icon+'</span><span class="dc-lb">'+ch.label+'</span><span class="dc-sb">'+ch.sub+'</span></button>').join('')}</div>`;
+
   return `
+  ${chooser}
   <div class="dream-hero">
     <div class="dream-hero-glow"></div>
     <div style="position:relative">
@@ -2210,21 +2365,21 @@ function renderDream(){
   </div>
 
   <div class="card">
-    <div class="card-title">💵 Meta em Dólar</div>
+    <div class="card-title">${isUSD?'💵 Meta em Dólar':'🎯 Meta de Valor'}</div>
     <div style="text-align:center;margin:4px 0 10px">
-      <div style="font-family:var(--font-d);font-size:2rem;font-weight:800;color:var(--green)">${fmtUSD(saved)}</div>
-      <div style="font-size:.76rem;color:var(--text3)">guardado${target>0?' de '+fmtUSD(target):''}</div>
-      ${rate>0?`<div style="font-size:.74rem;color:var(--cyan);margin-top:2px">≈ ${fmt(saved*rate)}${target>0?' de '+fmt(target*rate):''}</div>`:''}
+      <div style="font-family:var(--font-d);font-size:2rem;font-weight:800;color:var(--green)">${dreamMoney(saved)}</div>
+      <div style="font-size:.76rem;color:var(--text3)">guardado${target>0?' de '+dreamMoney(target):''}</div>
+      ${isUSD&&rate>0?`<div style="font-size:.74rem;color:var(--cyan);margin-top:2px">≈ ${fmt(saved*rate)}${target>0?' de '+fmt(target*rate):''}</div>`:''}
     </div>
     ${target>0?`<div class="budget-bar"><div class="budget-fill" style="width:${upct.toFixed(1)}%;background:var(--green)"></div></div>
-    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text3);margin-top:4px"><span>${upct.toFixed(0)}%</span><span>Faltam ${fmtUSD(Math.max(0,target-saved))}</span></div>`:''}
-    ${rec>0?`<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;text-align:center;margin-top:10px;font-size:.82rem">💡 Guardem <strong style="color:var(--green)">${fmtUSD(rec)}/mês</strong>${rate>0?' (≈ '+fmt(rec*rate)+')':''} para atingir no prazo</div>`:''}
+    <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text3);margin-top:4px"><span>${upct.toFixed(0)}%</span><span>Faltam ${dreamMoney(Math.max(0,target-saved))}</span></div>`:''}
+    ${rec>0?`<div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;text-align:center;margin-top:10px;font-size:.82rem">💡 Guardem <strong style="color:var(--green)">${dreamMoney(rec)}/mês</strong>${isUSD&&rate>0?' (≈ '+fmt(rec*rate)+')':''} para atingir no prazo</div>`:''}
     <div style="display:flex;gap:8px;margin-top:11px">
-      <button class="btn-primary" style="flex:1" onclick="openUsd('deposit')">💵 Guardar dólar</button>
+      <button class="btn-primary" style="flex:1" onclick="openUsd('deposit')">${isUSD?'💵 Guardar dólar':'🐷 Guardar'}</button>
       ${saved>0?'<button class="btn-secondary" style="padding:9px 13px" onclick="openUsd(\'withdraw\')">↩ Retirar</button>':''}
     </div>
-    <div class="setting-row" style="margin-top:6px"><div><div class="setting-label">Meta total (US$)</div><div class="setting-sub">Quanto querem ter guardado</div></div><input class="setting-input" type="number" inputmode="decimal" value="${target||''}" placeholder="Ex: 30000" onchange="setDreamTarget(+this.value)"/></div>
-    <div class="setting-row" style="padding:7px 0"><div><div class="setting-label">Cotação do dólar (R$)</div><div class="setting-sub">Pra ver o equivalente em real</div></div><input class="setting-input" type="number" inputmode="decimal" step="0.01" value="${rate||''}" placeholder="Ex: 5,40" onchange="setDreamRate(+this.value)"/></div>
+    <div class="setting-row" style="margin-top:6px"><div><div class="setting-label">Meta total ${isUSD?'(US$)':'(R$)'}</div><div class="setting-sub">Quanto querem ter guardado</div></div><input class="setting-input" type="number" inputmode="decimal" value="${target||''}" placeholder="${isUSD?'Ex: 30000':'Ex: 60000'}" onchange="setDreamTarget(+this.value)"/></div>
+    ${isUSD?`<div class="setting-row" style="padding:7px 0"><div><div class="setting-label">Cotação do dólar (R$)</div><div class="setting-sub">Pra ver o equivalente em real</div></div><input class="setting-input" type="number" inputmode="decimal" step="0.01" value="${rate||''}" placeholder="Ex: 5,40" onchange="setDreamRate(+this.value)"/></div>`:''}
   </div>
 
   <div class="card">
@@ -2243,10 +2398,10 @@ function renderDream(){
   }).join('')}
 
   <button class="btn-secondary" style="width:100%;margin-bottom:12px" onclick="addMission()">+ Criar missão personalizada</button>
-  <div style="font-size:.7rem;color:var(--text3);text-align:center;padding:0 10px 14px;line-height:1.5">⚠️ As missões são um guia para organizar o sonho. Confirmem os detalhes de visto e imigração nas fontes oficiais (consulado dos EUA) e, se possível, com um advogado de imigração.</div>
+  <div style="font-size:.7rem;color:var(--text3);text-align:center;padding:0 10px 14px;line-height:1.5">${isUSD?'⚠️ As missões são um guia para organizar o sonho. Confirmem os detalhes de visto e imigração nas fontes oficiais (consulado dos EUA) e, se possível, com um advogado de imigração.':'⚠️ As missões são um guia para organizar o sonho. Adaptem à realidade de vocês — é só tocar pra concluir, criar ou apagar missões.'}</div>
   `;
 }
-function setDreamTitle(v){ ensureDream(); state.dream.title=(v||'').trim()||'Sonho Americano'; saveState(); }
+function setDreamTitle(v){ ensureDream(); state.dream.title=(v||'').trim()||dreamDef().title; saveState(); }
 function setDreamTarget(v){ ensureDream(); state.dream.targetUSD=v||0; saveState(); renderCurrentTab(); }
 function setDreamRate(v){ ensureDream(); state.dream.usdRate=v||0; saveState(); renderCurrentTab(); }
 function setDreamDate(v){ ensureDream(); state.dream.targetDate=v||null; saveState(); renderCurrentTab(); }
@@ -2305,8 +2460,9 @@ function deleteHabit(id){
 let usdMode='deposit';
 function openUsd(mode){
   ensureDream(); usdMode=mode;
-  document.getElementById('usdTitle').textContent=mode==='deposit'?'💵 Guardar dólar':'↩ Retirar dólar';
-  document.getElementById('usdHint').textContent=mode==='deposit'?'Quanto vocês guardaram em dólar?':'Disponível: '+fmtUSD(state.dream.savedUSD||0);
+  const isUSD=dreamCurrency()==='USD';
+  document.getElementById('usdTitle').textContent=mode==='deposit'?(isUSD?'💵 Guardar dólar':'🐷 Guardar'):(isUSD?'↩ Retirar dólar':'↩ Retirar');
+  document.getElementById('usdHint').textContent=mode==='deposit'?(isUSD?'Quanto vocês guardaram em dólar?':'Quanto vocês guardaram?'):'Disponível: '+dreamMoney(state.dream.savedUSD||0);
   const el=document.getElementById('usdAmount'); el.value=''; el.style.borderColor='';
   document.getElementById('usdModal').classList.add('open');
   setTimeout(()=>el.focus(),100);
@@ -2325,7 +2481,7 @@ function confirmUsd(){
     d.savedUSD=(d.savedUSD||0)+amount; d.usdDeposits.push({date:new Date().toISOString().slice(0,10),amount});
   }
   saveState(); closeUsdModal();
-  showToast(usdMode==='deposit'?'💵 Dólar guardado! Rumo ao sonho 🇺🇸':'↩ Retirada registrada','success');
+  showToast(usdMode==='deposit'?(dreamCurrency()==='USD'?'💵 Dólar guardado! Rumo ao sonho 🇺🇸':'🐷 Guardado! Rumo ao sonho'):'↩ Retirada registrada','success');
   renderCurrentTab();
 }
 
