@@ -551,7 +551,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <div class="modal-handle"></div>
   <div class="modal-title" id="usdTitle">💵 Guardar dólar</div>
   <div id="usdHint" style="color:var(--text2);font-size:.86rem;margin-bottom:13px"></div>
-  <div class="form-group"><label class="form-label">Valor (US$)</label><input class="form-input" id="usdAmount" type="number" inputmode="decimal" step="0.01" placeholder="0.00"/></div>
+  <div class="form-group"><label class="form-label" id="usdAmountLabel">Valor (US$)</label><input class="form-input" id="usdAmount" type="number" inputmode="decimal" step="0.01" placeholder="0.00"/></div>
+  <div class="form-group" id="usdRateRow"><label class="form-label">Cotação na compra (R$ por US$)</label><input class="form-input" id="usdRateInput" type="number" inputmode="decimal" step="0.0001" placeholder="Ex: 5,40"/></div>
+  <div class="form-group" id="usdDateRow"><label class="form-label">Data da compra</label><input class="form-input" id="usdDateInput" type="date"/></div>
   <div class="btn-row" style="margin-top:13px">
     <button class="btn-secondary" onclick="closeUsdModal()">Cancelar</button>
     <button class="btn-primary" style="flex:1.5" onclick="confirmUsd()">Confirmar</button>
@@ -2440,8 +2442,10 @@ function renderDream(){
       ${saved>0?'<button class="btn-secondary" style="padding:9px 13px" onclick="openUsd(\'withdraw\')">↩ Retirar</button>':''}
     </div>
     <div class="setting-row" style="margin-top:6px"><div><div class="setting-label">Meta total ${isUSD?'(US$)':'(R$)'}</div><div class="setting-sub">Quanto querem ter guardado</div></div><input class="setting-input" type="number" inputmode="decimal" value="${target||''}" placeholder="${isUSD?'Ex: 30000':'Ex: 60000'}" onchange="setDreamTarget(+this.value)"/></div>
-    ${isUSD?`<div class="setting-row" style="padding:7px 0"><div><div class="setting-label">Cotação do dólar (R$)</div><div class="setting-sub">Pra ver o equivalente em real</div></div><input class="setting-input" type="number" inputmode="decimal" step="0.01" value="${rate||''}" placeholder="Ex: 5,40" onchange="setDreamRate(+this.value)"/></div>`:''}
+    ${isUSD?`<div class="setting-row" style="padding:7px 0"><div><div class="setting-label">Cotação do dólar hoje (R$)</div><div class="setting-sub">Pra ver o equivalente e o ganho</div></div><input class="setting-input" type="number" inputmode="decimal" step="0.01" value="${rate||''}" placeholder="Ex: 5,40" onchange="setDreamRate(+this.value)"/></div>`:''}
   </div>
+
+  ${renderDollarHistory()}
 
   <div class="card">
     <div class="card-title">🔥 Missões do mês — ${MONTHS_FULL[currentMonth]}<button class="btn-ghost" style="font-size:.74rem" onclick="addHabit()">+ Hábito</button></div>
@@ -2523,8 +2527,15 @@ function openUsd(mode){
   ensureDream(); usdMode=mode;
   const isUSD=dreamCurrency()==='USD';
   document.getElementById('usdTitle').textContent=mode==='deposit'?(isUSD?'💵 Guardar dólar':'🐷 Guardar'):(isUSD?'↩ Retirar dólar':'↩ Retirar');
-  document.getElementById('usdHint').textContent=mode==='deposit'?(isUSD?'Quanto vocês guardaram em dólar?':'Quanto vocês guardaram?'):'Disponível: '+dreamMoney(state.dream.savedUSD||0);
+  document.getElementById('usdHint').textContent=mode==='deposit'?(isUSD?'Quanto vocês compraram em dólar?':'Quanto vocês guardaram?'):'Disponível: '+dreamMoney(state.dream.savedUSD||0);
+  document.getElementById('usdAmountLabel').textContent=isUSD?'Valor (US$)':'Valor (R$)';
   const el=document.getElementById('usdAmount'); el.value=''; el.style.borderColor='';
+  // cotação + data só quando comprando dólar (sonho em US$)
+  const showRate = isUSD && mode==='deposit';
+  document.getElementById('usdRateRow').style.display=showRate?'':'none';
+  document.getElementById('usdDateRow').style.display=(mode==='deposit')?'':'none';
+  if(showRate){ const r=document.getElementById('usdRateInput'); r.value=state.dream.usdRate?state.dream.usdRate:''; r.style.borderColor=''; }
+  if(mode==='deposit'){ document.getElementById('usdDateInput').value=new Date().toISOString().slice(0,10); }
   document.getElementById('usdModal').classList.add('open');
   setTimeout(()=>el.focus(),100);
 }
@@ -2535,15 +2546,54 @@ function confirmUsd(){
   const amount=parseFloat(el.value);
   if(!amount||isNaN(amount)||amount<=0){el.style.borderColor='var(--red)';el.classList.add('shake');setTimeout(()=>{el.classList.remove('shake');el.style.borderColor='';},400);return;}
   const d=state.dream;
+  const isUSD=dreamCurrency()==='USD';
+  const date=(usdMode==='deposit'?(document.getElementById('usdDateInput').value||new Date().toISOString().slice(0,10)):new Date().toISOString().slice(0,10));
   if(usdMode==='withdraw'){
     if(amount>(d.savedUSD||0)){showToast('Valor maior que o disponível','error');return;}
-    d.savedUSD=(d.savedUSD||0)-amount; d.usdDeposits.push({date:new Date().toISOString().slice(0,10),amount:-amount});
+    d.savedUSD=(d.savedUSD||0)-amount; d.usdDeposits.push({date,amount:-amount});
   } else {
-    d.savedUSD=(d.savedUSD||0)+amount; d.usdDeposits.push({date:new Date().toISOString().slice(0,10),amount});
+    let rate=null;
+    if(isUSD){
+      rate=parseFloat(document.getElementById('usdRateInput').value);
+      if(!rate||isNaN(rate)||rate<=0){const r=document.getElementById('usdRateInput');r.style.borderColor='var(--red)';r.classList.add('shake');setTimeout(()=>{r.classList.remove('shake');r.style.borderColor='';},400);return;}
+      d.usdRate=rate; // a última compra vira a cotação de referência atual
+    }
+    d.savedUSD=(d.savedUSD||0)+amount; d.usdDeposits.push({date,amount,rate});
   }
   saveState(); closeUsdModal();
-  showToast(usdMode==='deposit'?(dreamCurrency()==='USD'?'💵 Dólar guardado! Rumo ao sonho 🇺🇸':'🐷 Guardado! Rumo ao sonho'):'↩ Retirada registrada','success');
+  showToast(usdMode==='deposit'?(isUSD?'💵 Dólar guardado! Rumo ao sonho 🇺🇸':'🐷 Guardado! Rumo ao sonho'):'↩ Retirada registrada','success');
   renderCurrentTab();
+}
+const brl2=v=>'R$ '+(v||0).toFixed(2).replace('.',',');
+// Histórico de compras de dólar + ganho com a valorização (só p/ sonho em US$)
+function renderDollarHistory(){
+  const d=state.dream; if(!d||dreamCurrency()!=='USD') return '';
+  const deps=(d.usdDeposits||[]);
+  const buys=deps.filter(x=>x.amount>0 && x.rate>0);
+  if(!buys.length) return '';
+  const totalUSD=buys.reduce((s,x)=>s+x.amount,0);
+  const investedBRL=buys.reduce((s,x)=>s+x.amount*x.rate,0);
+  const avgCost=totalUSD>0?investedBRL/totalUSD:0;
+  const cur=d.usdRate||0, saved=d.savedUSD||0;
+  const gainPct=(avgCost>0&&cur>0)?(cur/avgCost-1)*100:0;
+  const gainBRL=cur>0?saved*(cur-avgCost):0;
+  const gc=gainBRL>=0?'var(--green)':'var(--red)';
+  const rows=[...deps].filter(x=>x.amount>0).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,12).map(x=>{
+    const dt=new Date(x.date+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'});
+    const g=(x.rate&&cur)?x.amount*(cur-x.rate):null;
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)"><div><div style="font-size:.84rem;font-weight:600">'+fmtUSD(x.amount)+'</div><div style="font-size:.66rem;color:var(--text3)">'+dt+' · '+(x.rate?'a '+brl2(x.rate):'sem cotação')+'</div></div>'+(g!==null?'<div style="font-size:.78rem;font-weight:700;color:'+(g>=0?'var(--green)':'var(--red)')+'">'+(g>=0?'+':'')+fmt(g)+'</div>':'')+'</div>';
+  }).join('');
+  return '<div class="card">'
+    +'<div class="card-title">💹 Valorização do dólar</div>'
+    +'<div style="display:flex;gap:10px;text-align:center;margin-bottom:6px">'
+      +'<div style="flex:1"><div style="font-size:.64rem;color:var(--text3)">Custo médio</div><div style="font-family:var(--font-d);font-weight:800;font-size:.92rem">'+brl2(avgCost)+'</div></div>'
+      +'<div style="flex:1"><div style="font-size:.64rem;color:var(--text3)">Cotação atual</div><div style="font-family:var(--font-d);font-weight:800;font-size:.92rem">'+(cur>0?brl2(cur):'—')+'</div></div>'
+      +'<div style="flex:1"><div style="font-size:.64rem;color:var(--text3)">Ganho</div><div style="font-family:var(--font-d);font-weight:800;font-size:.92rem;color:'+gc+'">'+(cur>0?(gainBRL>=0?'+':'')+fmt(gainBRL):'—')+'</div></div>'
+    +'</div>'
+    +(cur>0?'<div style="text-align:center;font-size:.74rem;color:'+gc+';margin-bottom:8px">'+(gainPct>=0?'📈 +':'📉 ')+gainPct.toFixed(1)+'% sobre o que vocês pagaram</div>':'<div style="text-align:center;font-size:.72rem;color:var(--text3);margin-bottom:8px">Atualize a “Cotação do dólar” na meta acima pra ver o ganho de hoje.</div>')
+    +'<div style="font-size:.66rem;color:var(--text3);margin-bottom:2px">Compras</div>'
+    +rows
+    +'</div>';
 }
 
 // ============================================================
