@@ -575,8 +575,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 <div class="modal-overlay" id="importModal"><div class="modal">
   <div class="modal-handle"></div>
   <div class="modal-title">📥 Importar fatura</div>
-  <div id="importHint" style="color:var(--text2);font-size:.82rem;margin-bottom:10px">Cole o texto da fatura. As compras parceladas são projetadas pros próximos meses automaticamente. ⚠️ Confira o <b>dia de fechamento</b> do cartão antes.</div>
-  <div class="form-group"><textarea class="form-input" id="importText" rows="7" placeholder="Cole aqui o texto da fatura (com ; separando as colunas)..." style="resize:vertical;font-family:monospace;font-size:.78rem;line-height:1.5"></textarea></div>
+  <div id="importHint" style="color:var(--text2);font-size:.82rem;margin-bottom:10px">Cole o texto da fatura — em <b>qualquer formato</b> (do app do banco, da planilha, etc.). O app acha a data, o valor e as parcelas sozinho. ⚠️ Confira o <b>dia de fechamento</b> do cartão antes.</div>
+  <div class="form-group"><textarea class="form-input" id="importText" rows="7" placeholder="Cole aqui o texto da fatura...&#10;Ex: 08/05/2026  DOMESTILAR  (01/05)  R$ 61,20" style="resize:vertical;font-family:monospace;font-size:.78rem;line-height:1.5"></textarea></div>
   <div class="btn-row" style="margin-top:13px">
     <button class="btn-secondary" onclick="closeImportModal()">Cancelar</button>
     <button class="btn-primary" style="flex:1.5" onclick="parseFatura()">Importar</button>
@@ -2570,14 +2570,26 @@ function parseFatura(){
     return t.installTot ? card.id+'|'+normDesc(t.description)+'|'+t.installCur+'/'+t.installTot+'|'+mk
                         : card.id+'|'+normDesc(t.description)+'|'+Math.round(t.amount*100)+'|'+mk;
   }));
-  raw.split(/\r?\n/).forEach(line=>{
-    const p=line.split(';'); if(p.length<4) return;
-    const dm=p[0].trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(!dm) return; // não é linha de compra
-    const desc=(p[1]||'').replace(/\s+/g,' ').trim();
-    const val=parseValorBR(p[3]||''); if(isNaN(val)||val<=0){ skipped++; return; } // pagamento/crédito → ignora
+  let seen=0; // linhas que parecem compra (têm data) — pra dar uma mensagem melhor
+  // Aceita QUALQUER formato (;, tab, espaços): acha a data, o valor em R$ e o (parcela) na linha.
+  raw.split(/\r?\n/).forEach(rawline=>{
+    const line=(rawline||'').trim(); if(!line) return;
+    const dm=line.match(/(\d{2})\/(\d{2})\/(\d{4})/); if(!dm) return; // sem data → não é compra
+    seen++;
+    // valor: prioriza R$; senão pega o último número no formato brasileiro (1.234,56)
+    const vm=line.match(/R\$\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i) || line.match(/(-?\d{1,3}(?:\.\d{3})*,\d{2})/);
+    if(!vm){ skipped++; return; }
+    const val=parseValorBR(vm[1]); if(isNaN(val)||val<=0){ skipped++; return; } // pagamento/estorno → ignora
     const origDate=dm[3]+'-'+dm[2]+'-'+dm[1];
+    // parcela (xx/yy) em qualquer lugar
+    const pm=line.match(/\((\d{1,2})\/(\d{1,2})\)/);
+    // descrição: o que está entre a data e o valor, sem o marcador de parcela e sem separadores
+    const after=line.slice(dm.index+dm[0].length);
+    const vi=after.search(/R\$|-?\d{1,3}(?:\.\d{3})*,\d{2}/);
+    let desc=(vi>=0?after.slice(0,vi):after)
+      .replace(/\(\d{1,2}\/\d{1,2}\)/g,'').replace(/[;|\t]+/g,' ').replace(/\s+/g,' ').trim();
+    if(!desc) desc='Compra cartão';
     const cat=guessCat(desc);
-    const pm=(p[2]||'').match(/\(?(\d{1,2})\/(\d{1,2})\)?/);
     if(pm){
       // PARCELADO: projeta TODAS as parcelas (1..tot), uma por fatura — inclui histórico já pago
       const cur=parseInt(pm[1]), tot=parseInt(pm[2]);
@@ -2609,9 +2621,16 @@ function parseFatura(){
       added++;
     }
   });
-  saveState(); closeImportModal();
-  if(added) showToast(added+' lançamento(s) importado(s)'+(skipped?' · '+skipped+' já existiam':''),'success',5000);
-  else showToast('Nada novo pra importar (confira o texto / dia de fechamento do cartão).','info',5500);
+  saveState();
+  if(added){
+    closeImportModal();
+    showToast(added+' lançamento(s) importado(s)'+(skipped?' · '+skipped+' já existiam/ignorados':''),'success',5000);
+  } else if(seen===0){
+    showToast('Não achei nenhuma data (dd/mm/aaaa) no texto. Cola a fatura com as datas das compras.','error',6000);
+  } else {
+    closeImportModal();
+    showToast(seen+' compra(s) lidas, mas já estavam lançadas (nada novo).','info',5500);
+  }
   renderCurrentTab(); updateBudgetBadge();
 }
 
