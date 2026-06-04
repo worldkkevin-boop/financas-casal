@@ -729,7 +729,7 @@ function defaultState() {
   return {pin:'1234',p1name:'Eu',p2name:'Ela',p1income:0,p2income:0,
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
-    cardReserve:{balance:0,entries:[],paid:[]},theme:'dark',coupleId:null};
+    cardReserve:{balance:0,entries:[],paid:[]},payday:20,theme:'dark',coupleId:null};
 }
 function loadState() {
   try { return JSON.parse(localStorage.getItem('nosDoiFinancas')||'null')||defaultState(); }
@@ -748,7 +748,7 @@ async function pushToFirebase() {
   if (!uid) return; // sem auth não escreve (regras exigem login)
   try {
     await getCoupleRef().set({
-      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,theme:state.theme},
+      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,theme:state.theme},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
       cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]},
@@ -1019,7 +1019,9 @@ function hasSalaryThisMonth(person) {
 function launchSalary(person) {
   const amount=person==='p1'?state.p1income:state.p2income;
   if (!amount||amount<=0||hasSalaryThisMonth(person)) return;
-  const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-01';
+  const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
+  const day=Math.min(state.payday||20,lastDay);
+  const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
   state.transactions.push({id:uid(),description:'Salário '+MONTHS_FULL[currentMonth]+' '+currentYear,
     amount,date,category:'salario',payment:'ted',type:'income',person,
     splitMode:null,splitPct:null,_autoSalary:true,recurring:true,
@@ -2320,6 +2322,8 @@ function renderSettings() {
       <div><div class="setting-label" style="font-size:.8rem">Lançar salário — ${mn}</div><div class="setting-sub">${p2done?'✅ Já lançado':'Cria transação de receita'}</div></div>
       <button class="salary-btn" onclick="launchSalary('p2')" ${p2done?'disabled':''}>${p2done?'✓ Lançado':'📥 Lançar'}</button>
     </div>`:''}
+    <div class="divider"></div>
+    <div class="setting-row"><div><div class="setting-label">Dia do pagamento</div><div class="setting-sub">O salário é lançado nesse dia do mês</div></div><input class="setting-input" type="number" inputmode="numeric" min="1" max="31" value="${state.payday||20}" onchange="saveSetting('payday',Math.min(31,Math.max(1,parseInt(this.value)||20)))"/></div>
   </div>
   ${renderCardsSection()}
   <div class="card">
