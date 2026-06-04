@@ -205,6 +205,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .color-dot{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s}
 .color-dot:active{transform:scale(.9)}
 .color-dot.active{border-color:var(--text)}
+.bank-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bank-opt{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 2px;border-radius:10px;border:1.5px solid transparent;transition:border-color .12s,background .12s}
+.bank-opt:active{transform:scale(.95)}
+.bank-opt.active{border-color:var(--text);background:var(--surface2)}
+.bank-ava{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.72rem;letter-spacing:-.3px;box-shadow:0 1px 4px #0006}
+.bank-opt span{font-size:.6rem;color:var(--text3);text-align:center;line-height:1.1;max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-status{display:inline-flex;align-items:center;gap:4px;font-size:.66rem;font-weight:600}
+.cc-status .dot{width:7px;height:7px;border-radius:50%}
 
 /* SONHO */
 .dream-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#3b3f8f 0%,#6c8eff 55%,#a78bfa 100%);border-radius:20px;padding:22px 18px;margin-bottom:12px;text-align:center;color:#fff}
@@ -548,6 +556,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <div class="modal-handle"></div>
   <div class="modal-title" id="cardModalTitle">Novo Cartão</div>
   <div class="form-grid">
+    <div class="form-group full"><label class="form-label">Banco / bandeira</label>
+      <div id="cardBankGrid" class="bank-grid"></div>
+    </div>
     <div class="form-group full"><label class="form-label">Nome do cartão</label><input class="form-input" id="cardName" placeholder="Ex: Nubank, Inter..."/></div>
     <div class="form-group full"><label class="form-label">Limite (R$)</label><input class="form-input" id="cardLimit" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
     <div class="form-group"><label class="form-label">Dia de fechamento</label><input class="form-input" id="cardClosing" type="number" min="1" max="31" placeholder="Ex: 28"/></div>
@@ -2467,9 +2478,52 @@ function clearData() {
 // CARTÕES DE CRÉDITO
 // ============================================================
 let editingCardId = null;
+let selectedBank = null; // banco escolhido no modal
 const CARD_COLORS = ['#6c8eff','#a78bfa','#ff79c6','#34d48a','#ffaa4d','#ff5f7e','#7af3d8','#ffd166'];
+// Bancos/bandeiras populares no Brasil. c=cor de fundo, s=texto da bolinha, t=cor do texto (opcional)
+const BANKS = [
+  {n:'Nubank', c:'#820ad1', s:'nu'},
+  {n:'Itaú', c:'#ec7000', s:'Itaú'},
+  {n:'Bradesco', c:'#cc092f', s:'bra'},
+  {n:'Santander', c:'#ec0000', s:'San'},
+  {n:'Caixa', c:'#1c5faf', s:'CX'},
+  {n:'Banco do Brasil', c:'#fae128', s:'BB', t:'#0033a0'},
+  {n:'Inter', c:'#ff7a00', s:'inter'},
+  {n:'C6 Bank', c:'#242424', s:'C6'},
+  {n:'Sicredi', c:'#3fab36', s:'sic'},
+  {n:'Sicoob', c:'#00ae9d', s:'coob'},
+  {n:'Mercado Pago', c:'#00b1ea', s:'MP'},
+  {n:'PicPay', c:'#11c76f', s:'Pic'},
+  {n:'PagBank', c:'#11b048', s:'Pag'},
+  {n:'BTG', c:'#0a1f3c', s:'BTG'},
+  {n:'Will Bank', c:'#ffcc00', s:'will', t:'#222'},
+  {n:'Neon', c:'#00a3e0', s:'neon'},
+  {n:'XP', c:'#000000', s:'XP'},
+  {n:'Original', c:'#00a868', s:'orig'},
+  {n:'Visa', c:'#1a1f71', s:'VISA'},
+  {n:'Mastercard', c:'#cc2131', s:'MC'},
+  {n:'Elo', c:'#00a4e0', s:'elo'},
+  {n:'Outro', c:'#6c8eff', s:'💳'},
+];
+function getBank(name){ return BANKS.find(b=>b.n===name)||null; }
+// Bolinha do banco (avatar) — usada no modal e na lista de cartões
+function bankAvatar(bank, size){
+  const b=getBank(bank); const sz=size||38;
+  const bg=b?b.c:'var(--accent)'; const fg=b?(b.t||'#fff'):'#fff'; const txt=b?b.s:'💳';
+  const fs=txt.length>3?'.6rem':(txt.length>2?'.66rem':'.74rem');
+  return '<div class="bank-ava" style="width:'+sz+'px;height:'+sz+'px;background:'+bg+';color:'+fg+';font-size:'+fs+'">'+esc(txt)+'</div>';
+}
 
 function getCard(id){ return (state.cards||[]).find(c=>c.id===id)||null; }
+// Fatura aberta (ainda acumulando) ou já fechada (esperando pagamento)?
+function cardStatus(card){
+  const today=new Date(); const cd=card.closingDay||10;
+  const lastDay=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const dd=Math.min(cd,lastDay);
+  const open=today.getDate()<=dd;
+  return {open, word:open?'Aberta':'Fechada', color:open?'#3a8dff':'#8892aa',
+    label:'fecha '+String(dd).padStart(2,'0')+' de '+MONTHS_FULL[today.getMonth()].toLowerCase()};
+}
 
 // Em qual fatura (mês/ano) cai uma compra, dado o dia de fechamento
 function invoiceKeyFor(dateStr, closingDay){
@@ -2496,10 +2550,14 @@ function renderCardsSection(){
     const fillColor=pct>90?'var(--red)':pct>70?'var(--orange)':card.color||'var(--accent)';
     const avail=limit>0?limit-fatura:null;
     const ownerLbl=card.owner==='both'?'Ambos':(card.owner==='p2'?state.p2name:state.p1name);
+    const st=cardStatus(card);
     return '<div class="card-cc" onclick="openCardModal(\''+card.id+'\')" style="border-left:4px solid '+(card.color||'var(--accent)')+'">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
-        +'<div><div style="font-weight:700;font-size:.92rem">💳 '+esc(card.name)+'</div>'
-        +'<div style="font-size:.7rem;color:var(--text3)">'+esc(ownerLbl)+' · fecha dia '+card.closingDay+' · vence dia '+card.dueDay+'</div></div>'
+        +'<div style="display:flex;align-items:center;gap:9px;min-width:0">'+bankAvatar(card.bank,34)
+          +'<div style="min-width:0"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(card.name)+'</div>'
+          +'<div class="cc-status"><span class="dot" style="background:'+st.color+'"></span><span style="color:'+st.color+'">'+st.word+'</span><span style="color:var(--text3);font-weight:500"> · '+st.label+'</span></div>'
+          +'<div style="font-size:.68rem;color:var(--text3)">'+esc(ownerLbl)+' · vence dia '+card.dueDay+'</div></div>'
+        +'</div>'
         +'<div style="text-align:right"><div style="font-size:.66rem;color:var(--text3)">Fatura '+MONTHS[currentMonth]+'</div>'
         +'<div style="font-family:var(--font-d);font-weight:800;font-size:.95rem;color:'+fillColor+'">'+fmt(fatura)+'</div></div>'
       +'</div>'
@@ -2527,14 +2585,36 @@ function openCardModal(id){
   ownerSel.options[1].textContent=state.p1name; ownerSel.options[2].textContent=state.p2name;
   ownerSel.value=c?c.owner:'both';
   const color=c?c.color:CARD_COLORS[(state.cards||[]).length%CARD_COLORS.length];
-  document.getElementById('cardColorGrid').innerHTML=CARD_COLORS.map(col=>
+  const palette=CARD_COLORS.includes(color)?CARD_COLORS:[color,...CARD_COLORS];
+  document.getElementById('cardColorGrid').innerHTML=palette.map(col=>
     '<div class="color-dot'+(col===color?' active':'')+'" data-color="'+col+'" style="background:'+col+'" onclick="selectCardColor(\''+col+'\')"></div>').join('');
+  selectedBank=c?(c.bank||null):null;
+  document.getElementById('cardBankGrid').innerHTML=BANKS.map(b=>
+    '<div class="bank-opt'+(b.n===selectedBank?' active':'')+'" data-bank="'+esc(b.n)+'" onclick="selectBank(\''+b.n.replace(/'/g,"\\'")+'\')">'+bankAvatar(b.n)+'<span>'+esc(b.n)+'</span></div>').join('');
   document.getElementById('btnDeleteCard').style.display=c?'flex':'none';
   document.getElementById('btnImportFatura').style.display=c?'block':'none';
   document.getElementById('cardModal').classList.add('open');
 }
 function selectCardColor(col){
   document.querySelectorAll('#cardColorGrid .color-dot').forEach(d=>d.classList.toggle('active',d.dataset.color===col));
+}
+function selectBank(name){
+  selectedBank=name;
+  document.querySelectorAll('#cardBankGrid .bank-opt').forEach(d=>d.classList.toggle('active',d.dataset.bank===name));
+  const b=getBank(name);
+  // preenche o nome se estiver vazio e adota a cor da marca
+  const nameEl=document.getElementById('cardName');
+  if(b && name!=='Outro' && !nameEl.value.trim()) nameEl.value=name;
+  if(b && b.c){ selectCardColor(b.c); // marca a cor da marca se existir na paleta; senão deixa como está
+    if(!CARD_COLORS.includes(b.c)){
+      // injeta a cor da marca como opção ativa temporária
+      const grid=document.getElementById('cardColorGrid');
+      grid.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('active'));
+      let dot=grid.querySelector('[data-color="'+b.c+'"]');
+      if(!dot){ dot=document.createElement('div'); dot.className='color-dot'; dot.dataset.color=b.c; dot.style.background=b.c; dot.setAttribute('onclick','selectCardColor(\''+b.c+'\')'); grid.insertBefore(dot,grid.firstChild); }
+      dot.classList.add('active');
+    }
+  }
 }
 function closeCardModal(){ document.getElementById('cardModal').classList.remove('open'); editingCardId=null; }
 function saveCard(){
@@ -2550,11 +2630,12 @@ function saveCard(){
   if (!closingDay||closingDay<1||closingDay>31){shake(document.getElementById('cardClosing'));return;}
   if (!dueDay||dueDay<1||dueDay>31){shake(document.getElementById('cardDue'));return;}
   if (!state.cards) state.cards=[];
+  const bank=selectedBank||null;
   if (editingCardId){
     const card=getCard(editingCardId);
-    if (card) Object.assign(card,{name,limit,closingDay,dueDay,owner,color});
+    if (card) Object.assign(card,{name,limit,closingDay,dueDay,owner,color,bank});
   } else {
-    state.cards.push({id:uid(),name,limit,closingDay,dueDay,owner,color});
+    state.cards.push({id:uid(),name,limit,closingDay,dueDay,owner,color,bank});
   }
   saveState(); closeCardModal();
   showToast('✅ Cartão salvo!','success');
