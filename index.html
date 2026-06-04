@@ -225,6 +225,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .dream-choice .dc-ic{font-size:1.4rem;line-height:1}
 .dream-choice .dc-lb{font-size:.8rem;font-weight:700}
 .dream-choice .dc-sb{font-size:.64rem;color:var(--text3)}
+.mode-pick{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:16px;padding:18px 14px;cursor:pointer;color:var(--text);transition:border-color .15s,transform .1s}
+.mode-pick:active{transform:scale(.97)}
+.mode-pick:hover{border-color:var(--accent)}
+.mode-pick .mp-ic{font-size:2rem;line-height:1}
+.mode-pick .mp-lb{font-family:var(--font-d);font-weight:800;font-size:1.05rem}
+.mode-pick .mp-sb{font-size:.74rem;color:var(--text3)}
 .dream-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#3b3f8f 0%,#6c8eff 55%,#a78bfa 100%);border-radius:20px;padding:22px 18px;margin-bottom:12px;text-align:center;color:#fff}
 .dream-hero-glow{position:absolute;top:-40px;right:-30px;width:170px;height:170px;background:radial-gradient(circle,#ffffff33,transparent 70%);pointer-events:none}
 .dream-title-input{background:transparent;border:none;border-bottom:1px solid transparent;color:#fff;font-family:var(--font-d);font-weight:800;font-size:1.45rem;text-align:center;width:100%;margin:2px 0;padding:2px}
@@ -393,7 +399,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
       <button class="pin-key" style="font-size:.88rem;color:var(--text3)" onclick="pinClear()">✕</button>
     </div>
     <p class="pin-hint" id="pinHint">PIN padrão: <strong>1234</strong></p>
-    <button class="btn-ghost" onclick="showPairScreen()" style="margin-top:4px">🔗 Conectar com parceiro/a</button>
+    <button class="btn-ghost" onclick="showPairScreen()" style="margin-top:4px" id="pairLink">🔗 Conectar com parceiro/a</button>
+  </div>
+  <div id="modeScreen" style="display:none;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:340px">
+    <p style="font-size:.92rem;color:var(--text2);text-align:center;margin:0">Como você vai usar o app?</p>
+    <button class="mode-pick" onclick="chooseMode('couple')">
+      <span class="mp-ic">💑</span><span class="mp-lb">Em casal</span>
+      <span class="mp-sb">Dividir gastos e sonhar a dois</span>
+    </button>
+    <button class="mode-pick" onclick="chooseMode('solo')">
+      <span class="mp-ic">🧍</span><span class="mp-lb">Carreira solo</span>
+      <span class="mp-sb">Minhas finanças, só pra mim</span>
+    </button>
+    <p style="font-size:.7rem;color:var(--text3);text-align:center;margin:0">Dá pra mudar depois em Config</p>
   </div>
 </div>
 
@@ -414,7 +432,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 
 <div id="app">
   <header class="topbar">
-    <div class="topbar-logo">💰 Nós <span>Dois</span></div>
+    <div class="topbar-logo" id="topLogo">💰 Nós <span>Dois</span></div>
     <div class="topbar-right">
       <div class="month-nav">
         <button onclick="changeMonth(-1)" aria-label="Mês anterior">←</button>
@@ -432,7 +450,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <nav class="nav-tabs">
     <button class="nav-tab active" onclick="showTab('dashboard',this)">📊 Visão Geral</button>
     <button class="nav-tab" onclick="showTab('transactions',this)">💳 Lançamentos</button>
-    <button class="nav-tab" onclick="showTab('split',this)">⚖️ Divisão</button>
+    <button class="nav-tab" id="tabSplit" onclick="showTab('split',this)">⚖️ Divisão</button>
     <button class="nav-tab" onclick="showTab('budget',this)" id="tabBudget">🎯 Orçamento<span class="tab-badge" id="budgetBadge" style="display:none"></span></button>
     <button class="nav-tab" onclick="showTab('goals',this)">💰 Metas</button>
     <button class="nav-tab" onclick="showTab('dream',this)">✈️ Sonho</button>
@@ -490,7 +508,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
         <span class="form-label" style="margin:0">Recorrente (todo mês) 🔁</span>
       </label>
     </div>
-    <div class="form-group full"><label class="form-label">De quem</label>
+    <div class="form-group full" id="personRow"><label class="form-label">De quem</label>
       <div class="person-toggle" id="personToggle">
         <button class="active p1" onclick="setPerson('p1',this)" id="btnP1"></button>
         <button onclick="setPerson('p2',this)" id="btnP2" class="p2"></button>
@@ -759,6 +777,7 @@ const CATS_INCOME = [
 let state = loadState();
 migrateImportedInstallments();
 migrateSalaryDay();
+migrateMode();
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let activeTab = 'dashboard';
@@ -779,7 +798,16 @@ function defaultState() {
   return {pin:'1234',p1name:'Eu',p2name:'Ela',p1income:0,p2income:0,
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
-    cardReserve:{balance:0,entries:[],paid:[]},payday:20,theme:'dark',coupleId:null};
+    cardReserve:{balance:0,entries:[],paid:[]},payday:20,theme:'dark',coupleId:null,mode:null};
+}
+function isSolo(){ return state.mode==='solo'; }
+// Usuários antigos (já têm dados) entram como casal sem precisar escolher
+function migrateMode(){
+  try{
+    if(state.mode) return;
+    const hasData=(state.transactions&&state.transactions.length)||state.coupleId||localStorage.getItem('nosDoisUnlocked')==='1';
+    if(hasData){ state.mode='couple'; localStorage.setItem('nosDoiFinancas',JSON.stringify(state)); }
+  }catch(e){ console.error('migrateMode',e); }
 }
 function loadState() {
   try { return JSON.parse(localStorage.getItem('nosDoiFinancas')||'null')||defaultState(); }
@@ -943,6 +971,38 @@ function tryLogin() {
     setTimeout(()=>{ hint.textContent='PIN padrão: 1234'; hint.style.color=''; },1600);
   }
 }
+// Mostra a escolha Solo/Casal antes do PIN (só quando ainda não foi definido)
+function maybeShowModeScreen(){
+  if(state.mode) return false;
+  const pin=document.getElementById('pinScreen'), mode=document.getElementById('modeScreen');
+  if(pin) pin.style.display='none';
+  if(mode) mode.style.display='flex';
+  return true;
+}
+function chooseMode(m){
+  state.mode=m; saveState();
+  const mode=document.getElementById('modeScreen'), pin=document.getElementById('pinScreen');
+  if(mode) mode.style.display='none';
+  if(pin) pin.style.display='flex';
+  applyMode();
+}
+// Ajusta a interface conforme o modo (esconde divisão, 2º avatar, etc. no solo)
+function applyMode(){
+  const solo=isSolo();
+  const splitTab=document.getElementById('tabSplit'); if(splitTab) splitTab.style.display=solo?'none':'';
+  const av2=document.getElementById('avatarP2'); if(av2) av2.style.display=solo?'none':'';
+  const pairLink=document.getElementById('pairLink'); if(pairLink) pairLink.style.display=solo?'none':'';
+  const personRow=document.getElementById('personRow'); if(personRow) personRow.style.display=solo?'none':'';
+  const splitRow=document.getElementById('splitRow'); if(solo&&splitRow) splitRow.style.display='none';
+  // título do app
+  const logo=document.getElementById('topLogo'); if(logo) logo.innerHTML=solo?'💰 Minhas <span>Finanças</span>':'💰 Nós <span>Dois</span>';
+}
+function toggleMode(){
+  const to=isSolo()?'couple':'solo';
+  openConfirm(to==='solo'?'Mudar para o modo Solo? A divisão e a 2ª pessoa ficam ocultas (seus dados são mantidos).':'Mudar para o modo Casal? Volta a divisão e a 2ª pessoa.', ()=>{
+    state.mode=to; saveState(); applyMode(); showToast(to==='solo'?'🧍 Modo Solo':'💑 Modo Casal','success'); renderCurrentTab();
+  }, {okLabel:'Trocar'});
+}
 function showPairScreen() {
   document.getElementById('pinScreen').style.display='none';
   const pair = document.getElementById('pairScreen');
@@ -987,6 +1047,7 @@ async function joinWithCode() {
 // APP INIT
 function initApp() {
   applyTheme(state.theme||'dark');
+  applyMode();
   updateAvatars(); updateMonthLabel();
   renderTab('dashboard'); updateBudgetBadge();
   if (USE_FIREBASE&&state.coupleId) subscribeFirebase();
@@ -1304,7 +1365,7 @@ function renderDashboard() {
   return `
   <div class="hero-card fade-up">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div class="hero-label">Patrimônio do casal</div>
+      <div class="hero-label">${isSolo()?'Meu patrimônio':'Patrimônio do casal'}</div>
       <button onclick="togglePatrimonio()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.05rem;opacity:.75;padding:0">${hidePat?'🙈':'👁'}</button>
     </div>
     <div class="hero-amount ${pat.total>=0?'pos':'neg'}">${hidePat?'<span style="font-size:1.7rem;letter-spacing:.06em">R$ ••••</span>':fmtHero(pat.total)}</div>
@@ -2550,17 +2611,17 @@ function renderSettings() {
   const coupleCode=state.coupleId?`<div style="font-family:var(--font-d);font-size:1.1rem;font-weight:800;letter-spacing:.12em;color:var(--accent)">${state.coupleId}</div>`:'<span style="color:var(--text3)">Não configurado</span>';
   return `
   <div class="card">
-    <div class="card-title">Perfil do Casal</div>
+    <div class="card-title">${isSolo()?'Meu Perfil':'Perfil do Casal'}</div>
     <div class="setting-row"><div><div class="setting-label" style="color:var(--p1)">● ${esc(state.p1name)}</div></div><input class="setting-input" value="${esc(state.p1name)}" onchange="saveSetting('p1name',this.value)"/></div>
     <div class="setting-row">
-      <div><div class="setting-label">Renda de ${esc(state.p1name)}</div><div class="setting-sub">Usada na divisão proporcional</div></div>
+      <div><div class="setting-label">Renda de ${esc(state.p1name)}</div>${isSolo()?'':'<div class="setting-sub">Usada na divisão proporcional</div>'}</div>
       <input class="setting-input" type="number" inputmode="decimal" value="${state.p1income}" onchange="saveSetting('p1income',+this.value)" placeholder="0,00"/>
     </div>
     ${state.p1income>0?`<div class="setting-row" style="padding:7px 0">
       <div><div class="setting-label" style="font-size:.8rem">Lançar salário — ${mn}</div><div class="setting-sub">${p1done?'✅ Já lançado':'Cria transação de receita'}</div></div>
       <button class="salary-btn" onclick="launchSalary('p1')" ${p1done?'disabled':''}>${p1done?'✓ Lançado':'📥 Lançar'}</button>
     </div>`:''}
-    <div class="divider"></div>
+    ${isSolo()?'':`<div class="divider"></div>
     <div class="setting-row"><div><div class="setting-label" style="color:var(--p2)">● ${esc(state.p2name)}</div></div><input class="setting-input" value="${esc(state.p2name)}" onchange="saveSetting('p2name',this.value)"/></div>
     <div class="setting-row">
       <div><div class="setting-label">Renda de ${esc(state.p2name)}</div></div>
@@ -2569,9 +2630,11 @@ function renderSettings() {
     ${state.p2income>0?`<div class="setting-row" style="padding:7px 0">
       <div><div class="setting-label" style="font-size:.8rem">Lançar salário — ${mn}</div><div class="setting-sub">${p2done?'✅ Já lançado':'Cria transação de receita'}</div></div>
       <button class="salary-btn" onclick="launchSalary('p2')" ${p2done?'disabled':''}>${p2done?'✓ Lançado':'📥 Lançar'}</button>
-    </div>`:''}
+    </div>`:''}`}
     <div class="divider"></div>
     <div class="setting-row"><div><div class="setting-label">Dia do pagamento</div><div class="setting-sub">O salário é lançado nesse dia do mês</div></div><input class="setting-input" type="number" inputmode="numeric" min="1" max="31" value="${state.payday||20}" onchange="saveSetting('payday',Math.min(31,Math.max(1,parseInt(this.value)||20)))"/></div>
+    <div class="divider"></div>
+    <div class="setting-row"><div><div class="setting-label">Modo de uso</div><div class="setting-sub">${isSolo()?'🧍 Solo — só você':'💑 Casal — vocês dois'}</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="toggleMode()">Trocar p/ ${isSolo()?'Casal 💑':'Solo 🧍'}</button></div>
   </div>
   ${renderCardsSection()}
   <div class="card">
@@ -3185,6 +3248,7 @@ if (localStorage.getItem('nosDoisUnlocked')==='1') {
 // INIT ON LOAD
 window.addEventListener('load', () => {
   applyTheme(state.theme||'dark');
+  if (localStorage.getItem('nosDoisUnlocked')!=='1') maybeShowModeScreen();
   if (USE_FIREBASE && state.coupleId) subscribeFirebase();
 });
 
