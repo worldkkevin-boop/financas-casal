@@ -896,7 +896,7 @@ async function pushToFirebase() {
   if (!uid) return; // sem auth não escreve (regras exigem login)
   try {
     await getCoupleRef().set({
-      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||''},
+      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,paydayCycle:state.paydayCycle||false,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||''},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
       cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]},
