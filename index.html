@@ -728,7 +728,8 @@ let planId = null;
 function defaultState() {
   return {pin:'1234',p1name:'Eu',p2name:'Ela',p1income:0,p2income:0,
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
-    investments:{balance:0,entries:[],sweptMonths:[]},bills:{},theme:'dark',coupleId:null};
+    investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
+    cardReserve:{balance:0,entries:[],paid:[]},theme:'dark',coupleId:null};
 }
 function loadState() {
   try { return JSON.parse(localStorage.getItem('nosDoiFinancas')||'null')||defaultState(); }
@@ -750,6 +751,7 @@ async function pushToFirebase() {
       settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,theme:state.theme},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
+      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]},
       transactions:state.transactions, goals:state.goals,
       members: firebase.firestore.FieldValue.arrayUnion(uid),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -774,6 +776,7 @@ function subscribeFirebase() {
     if (data.dream) state.dream = data.dream;
     if (data.investments) state.investments = data.investments;
     if (data.bills) state.bills = data.bills;
+    if (data.cardReserve) state.cardReserve = data.cardReserve;
     if (data.transactions) state.transactions = data.transactions;
     if (data.goals) state.goals = data.goals;
     localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -808,6 +811,7 @@ async function initFirebase(coupleId) {
       if (data.dream) state.dream = data.dream;
       if (data.investments) state.investments = data.investments;
       if (data.bills) state.bills = data.bills;
+      if (data.cardReserve) state.cardReserve = data.cardReserve;
       if (data.transactions) state.transactions = data.transactions;
       if (data.goals) state.goals = data.goals;
       localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -1063,19 +1067,105 @@ function updateBudgetBadge() {
 // ============================================================
 // DASHBOARD
 // ============================================================
+function ensureReserve(){
+  if(!state.cardReserve) state.cardReserve={balance:0,entries:[],paid:[]};
+  if(!state.cardReserve.entries) state.cardReserve.entries=[];
+  if(!state.cardReserve.paid) state.cardReserve.paid=[];
+}
+// Total das faturas do mês (0 se já marcada como paga)
+function faturasDoMes(m,y){
+  ensureReserve();
+  const mo=m!==undefined?m:currentMonth, yr=y!==undefined?y:currentYear;
+  if(state.cardReserve.paid.includes(mo+'-'+yr)) return 0;
+  return (state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c,mo,yr),0);
+}
 function patrimonioTotal(){
-  ensureInvest();
+  ensureInvest(); ensureReserve();
   const invest=state.investments.balance||0;
   const caixinhas=(state.goals||[]).reduce((s,g)=>s+(g.saved||0),0);
   const d=state.dream||{};
   const dollarBRL=(d.savedUSD||0)*(d.usdRate||0);
-  const faturas=(state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c),0);
-  return { invest, caixinhas, dollarBRL, faturas, total: invest+caixinhas+dollarBRL-faturas };
+  const reserva=state.cardReserve.balance||0;
+  const faturas=faturasDoMes();
+  return { invest, caixinhas, dollarBRL, reserva, faturas, total: invest+caixinhas+dollarBRL+reserva-faturas };
 }
 function togglePatrimonio(){
   const h=localStorage.getItem('hidePatrimonio')==='1';
   localStorage.setItem('hidePatrimonio', h?'0':'1');
   renderCurrentTab();
+}
+// --- RESERVA DA FATURA ---
+function openReserveAdd(){
+  ensureReserve();
+  openInputModal('Guardar na reserva da fatura',[
+    {key:'amount',label:'Quanto guardar (R$)',type:'number',step:'0.01',placeholder:'0,00'}
+  ], v=>{
+    const a=parseFloat(v.amount); if(!a||a<=0){ showToast('Valor inválido','error'); return; }
+    state.cardReserve.balance=(state.cardReserve.balance||0)+a;
+    state.cardReserve.entries.push({date:new Date().toISOString().slice(0,10),amount:a,note:'Guardado'});
+    saveState(); showToast('🐷 Reserva atualizada','success'); renderCurrentTab();
+  });
+}
+function reserveAdjust(){
+  ensureReserve();
+  openInputModal('Ajustar reserva',[
+    {key:'amount',label:'Valor (negativo p/ tirar, ex: -200)',type:'number',step:'0.01',placeholder:'0,00'}
+  ], v=>{
+    const a=parseFloat(v.amount); if(!a||isNaN(a)){ showToast('Valor inválido','error'); return; }
+    if((state.cardReserve.balance||0)+a<0){ showToast('Saldo insuficiente','error'); return; }
+    state.cardReserve.balance=(state.cardReserve.balance||0)+a;
+    state.cardReserve.entries.push({date:new Date().toISOString().slice(0,10),amount:a,note:a>0?'Ajuste':'Retirada'});
+    saveState(); showToast('Reserva atualizada','success'); renderCurrentTab();
+  });
+}
+function reservePayFatura(){
+  ensureReserve();
+  const fat=faturasDoMes();
+  if(fat<=0){ showToast('Sem fatura em aberto neste mês','info'); return; }
+  openConfirm('Marcar a fatura de '+MONTHS_FULL[currentMonth]+' ('+fmt(fat)+') como paga? O valor sai da reserva.', ()=>{
+    state.cardReserve.balance=Math.max(0,(state.cardReserve.balance||0)-fat);
+    state.cardReserve.paid.push(currentMonth+'-'+currentYear);
+    state.cardReserve.entries.push({date:new Date().toISOString().slice(0,10),amount:-fat,note:'Pagamento fatura '+MONTHS[currentMonth]});
+    saveState(); showToast('💳 Fatura de '+MONTHS[currentMonth]+' paga!','success'); renderCurrentTab();
+  }, {okLabel:'Paguei'});
+}
+function unpayFatura(){
+  ensureReserve();
+  state.cardReserve.paid=state.cardReserve.paid.filter(k=>k!==(currentMonth+'-'+currentYear));
+  saveState(); renderCurrentTab();
+}
+function renderReserveCard(){
+  ensureReserve();
+  const res=state.cardReserve.balance||0;
+  const paid=state.cardReserve.paid.includes(currentMonth+'-'+currentYear);
+  const fat=faturasDoMes();
+  const fatBruta=(state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c,currentMonth,currentYear),0);
+  if(fatBruta<=0 && res<=0) return ''; // nada de cartão ainda
+  const income=(state.p1income||0)+(state.p2income||0);
+  const pctRenda=income>0?fatBruta/income*100:0;
+  const covered=res>=fat;
+  const falta=Math.max(0,fat-res);
+  let statusHtml;
+  if(paid) statusHtml='<div style="text-align:center;font-size:.82rem;color:var(--green);margin-top:9px">✅ Fatura de '+MONTHS_FULL[currentMonth]+' paga <button class="btn-ghost" style="font-size:.7rem" onclick="unpayFatura()">desfazer</button></div>';
+  else if(fat<=0) statusHtml='<div style="text-align:center;font-size:.78rem;color:var(--text3);margin-top:9px">Sem fatura neste mês</div>';
+  else if(covered) statusHtml='<div style="text-align:center;font-size:.82rem;color:var(--green);margin-top:9px">✅ Fatura coberta pela reserva</div>';
+  else statusHtml='<div style="text-align:center;font-size:.82rem;color:var(--orange);margin-top:9px">⚠️ Falta '+fmt(falta)+' pra cobrir a fatura</div>';
+  const pct=fat>0?Math.min(100,res/fat*100):(res>0?100:0);
+  const barColor=covered?'var(--green)':'var(--orange)';
+  const rendaColor=pctRenda>40?'var(--red)':pctRenda>25?'var(--orange)':'var(--text3)';
+  return '<div class="card fade-up" style="border-color:#ffd16633">'
+    +'<div class="card-title">🐷 Reserva da fatura</div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:baseline"><div><div style="font-size:.7rem;color:var(--text3)">Reservado</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.3rem;color:var(--cyan)">'+fmt(res)+'</div></div>'
+    +'<div style="text-align:right"><div style="font-size:.7rem;color:var(--text3)">Fatura '+MONTHS[currentMonth]+(paid?' (paga)':'')+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:1rem">'+fmt(fatBruta)+'</div></div></div>'
+    +(fat>0?'<div class="budget-bar" style="margin-top:9px"><div class="budget-fill" style="width:'+pct.toFixed(0)+'%;background:'+barColor+'"></div></div>':'')
+    +statusHtml
+    +(income>0?'<div style="font-size:.72rem;color:'+rendaColor+';text-align:center;margin-top:7px">Sua fatura é <strong>'+pctRenda.toFixed(0)+'%</strong> da renda do casal'+(pctRenda>40?' — pesado, segura o crédito!':pctRenda>25?' — fique de olho':' — saudável 👍')+'</div>':'')
+    +'<div style="display:flex;gap:8px;margin-top:11px">'
+    +'<button class="btn-primary" style="flex:1" onclick="openReserveAdd()">🐷 Guardar na reserva</button>'
+    +(!paid&&fat>0?'<button class="btn-secondary" style="padding:9px 12px" onclick="reservePayFatura()">Paguei</button>':'')
+    +'</div>'
+    +'<button class="btn-ghost" style="width:100%;margin-top:6px;font-size:.76rem" onclick="reserveAdjust()">± Ajuste manual</button>'
+    +'</div>';
 }
 function renderDashboard() {
   const txs=getMonthTx(), prevTxs=getMonthTx(currentMonth>0?currentMonth-1:11, currentMonth>0?currentYear:currentYear-1);
@@ -1126,6 +1216,7 @@ function renderDashboard() {
       <div class="hero-stat"><div class="hero-stat-lbl">💹 Investido</div><div class="hero-stat-val">${fmt(pat.invest)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💰 Caixinhas/Metas</div><div class="hero-stat-val">${fmt(pat.caixinhas)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💵 Dólar</div><div class="hero-stat-val">${fmt(pat.dollarBRL)}</div></div>
+      <div class="hero-stat"><div class="hero-stat-lbl">🐷 Reserva fatura</div><div class="hero-stat-val">${fmt(pat.reserva)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💳 Faturas</div><div class="hero-stat-val" style="color:var(--red)">${pat.faturas>0?'-'+fmt(pat.faturas):fmt(0)}</div></div>
     </div>`}
   </div>
@@ -1161,6 +1252,8 @@ function renderDashboard() {
     <div class="card-title">💳 Meus cartões<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('settings')">gerenciar →</button></div>
     ${cards.map(c=>{const fat=cardInvoiceTotal(c);const avail=(c.limit||0)-fat;return '<div onclick="navTo(\'settings\')" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="display:flex;align-items:center;gap:9px"><span style="width:6px;height:26px;border-radius:3px;background:'+(c.color||'var(--accent)')+';flex-shrink:0"></span><div><div style="font-size:.86rem;font-weight:600">💳 '+esc(c.name)+'</div><div style="font-size:.68rem;color:var(--text3)">limite disp. '+fmt(Math.max(0,avail))+'</div></div></div><div style="text-align:right"><div style="font-size:.64rem;color:var(--text3)">fatura '+MONTHS[currentMonth]+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:.88rem">'+fmt(fat)+'</div></div></div>';}).join('')}
   </div>`:''}
+
+  ${renderReserveCard()}
 
   ${state.dream?`<div class="card fade-up" style="background:linear-gradient(135deg,#3b3f8f22,#a78bfa11);border-color:#6c8eff33">
     <div class="card-title">✈️ Sonho Americano<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('dream')">abrir →</button></div>
