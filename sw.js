@@ -1,4 +1,4 @@
-const CACHE = 'nosdois-v2';
+const CACHE = 'nosdois-v3';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 // Firebase Messaging (só ativo se Firebase estiver configurado)
@@ -45,8 +45,8 @@ if (typeof firebase !== 'undefined' && firebase.messaging) {
       const { title, body, icon } = payload.notification || {};
       self.registration.showNotification(title || 'Nós Dois 💰', {
         body: body || 'Nova atualização',
-        icon: icon || './icon-192.png',
-        badge: './icon-192.png',
+        icon: icon || './icon.svg',
+        badge: './icon.svg',
         vibrate: [200, 100, 200],
         data: payload.data,
       });

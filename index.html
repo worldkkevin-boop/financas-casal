@@ -8,9 +8,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <title>💰 Nós Dois</title>
 <link rel="manifest" href="manifest.json"/>
+<link rel="icon" type="image/svg+xml" href="icon.svg"/>
+<link rel="apple-touch-icon" href="icon.svg"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -32,7 +34,7 @@
   --green:#34d48a;--red:#ff5f7e;--orange:#ffaa4d;--yellow:#ffd166;
   --pink:#ff79c6;--cyan:#7af3d8;--p1:#6c8eff;--p2:#ff79c6;
   --radius:16px;--radius-sm:10px;--radius-xs:7px;
-  --font-d:'Syne',sans-serif;--font-b:'DM Sans',sans-serif;
+  --font-d:'Plus Jakarta Sans',sans-serif;--font-b:'Plus Jakarta Sans',sans-serif;
 }
 [data-theme="light"]{
   --bg:#f0f2fb;--surface:#fff;--surface2:#e8ebf5;--surface3:#dde1ef;
@@ -41,7 +43,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px}
-body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100dvh;overflow-x:hidden;overscroll-behavior-y:contain;transition:background .3s,color .3s}
+body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100dvh;overflow-x:hidden;overscroll-behavior-y:contain;transition:background .3s,color .3s;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
 /* PULL TO REFRESH */
 #ptr{position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:90;display:flex;align-items:center;justify-content:center;gap:8px;height:0;overflow:hidden;color:var(--text2);font-size:.84rem;font-weight:600;background:var(--bg);transition:height .2s,color .2s;pointer-events:none}
@@ -56,8 +58,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 #splash{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .5s}
 #splash.hide{opacity:0;pointer-events:none}
 .splash-glow{position:absolute;top:25%;left:50%;transform:translate(-50%,-50%);width:280px;height:280px;background:radial-gradient(circle,#6c8eff1e 0%,transparent 70%);pointer-events:none}
-.splash-logo{font-family:var(--font-d);font-size:2.2rem;font-weight:800}
-.splash-logo span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.splash-logo{font-family:var(--font-d);font-size:2.2rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:11px}
+.brand-mark{display:block;flex-shrink:0}
+.splash-logo .brand-mark{height:44px}
+.topbar-logo .brand-mark{height:23px}
+.dash-edit-row{display:flex;align-items:center;gap:7px;padding:10px 12px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);margin-bottom:8px;transition:opacity .15s}
+.dash-edit-row .deh{flex:1;font-size:.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dash-edit-btn{width:34px;height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text2);cursor:pointer;font-size:.95rem;transition:all .12s;-webkit-tap-highlight-color:transparent}
+.dash-edit-btn:active{transform:scale(.92)}
+.dash-edit-btn:disabled{opacity:.3;cursor:default}
+.dash-customize{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin:10px 0 2px;padding:11px;background:none;border:1px dashed var(--border3);border-radius:var(--radius-sm);color:var(--text3);cursor:pointer;font-family:var(--font-b);font-size:.8rem;font-weight:600;transition:all .15s}
+.dash-customize:active{transform:scale(.98)}
+.splash-logo .grad{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .splash-sub{color:var(--text2);font-size:.88rem}
 .pin-dots{display:flex;gap:12px;justify-content:center;margin:4px 0}
 .pin-dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--border3);transition:all .2s}
@@ -77,8 +89,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 
 /* TOPBAR */
 .topbar{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:calc(max(20px, env(safe-area-inset-top)) + 8px) 14px 12px 14px;min-height:52px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(12px)}
-.topbar-logo{font-family:var(--font-d);font-weight:800;font-size:1rem}
-.topbar-logo span{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.topbar-logo{font-family:var(--font-d);font-weight:800;font-size:1rem;display:flex;align-items:center;gap:8px}
+.topbar-logo .grad{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .topbar-right{display:flex;align-items:center;gap:9px}
 .month-nav{display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:999px;padding:3px}
 .month-nav button{background:transparent;border:1.5px solid var(--border2);border-radius:50%;color:var(--text);cursor:pointer;font-size:.82rem;width:26px;height:26px;display:flex;align-items:center;justify-content:center;transition:background .2s,border-color .2s;flex:none}
@@ -377,7 +389,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 <div id="toastContainer"></div>
 <div id="splash">
   <div class="splash-glow"></div>
-  <div class="splash-logo">💰 Nós <span>Dois</span></div>
+  <div class="splash-logo"><svg class="brand-mark" viewBox="0 0 46 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="ndA1" x1="7" y1="5" x2="25" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#6c8eff"/><stop offset="1" stop-color="#7af3d8"/></linearGradient><linearGradient id="ndB1" x1="21" y1="5" x2="39" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#ff79c6"/></linearGradient></defs><circle cx="16" cy="14" r="9" stroke="url(#ndA1)" stroke-width="4.2"/><circle cx="30" cy="14" r="9" stroke="url(#ndB1)" stroke-width="4.2"/></svg><span class="wm">Nós <span class="grad">Dois</span></span></div>
   <p class="splash-sub">finanças do casal</p>
   <div id="pinScreen" style="display:flex;flex-direction:column;align-items:center;gap:13px">
     <div class="pin-dots">
@@ -432,7 +444,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 
 <div id="app">
   <header class="topbar">
-    <div class="topbar-logo" id="topLogo">💰 Nós <span>Dois</span></div>
+    <div class="topbar-logo" id="topLogo"><svg class="brand-mark" viewBox="0 0 46 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="ndA2" x1="7" y1="5" x2="25" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#6c8eff"/><stop offset="1" stop-color="#7af3d8"/></linearGradient><linearGradient id="ndB2" x1="21" y1="5" x2="39" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#ff79c6"/></linearGradient></defs><circle cx="16" cy="14" r="9" stroke="url(#ndA2)" stroke-width="4.2"/><circle cx="30" cy="14" r="9" stroke="url(#ndB2)" stroke-width="4.2"/></svg><span class="wm">Nós <span class="grad">Dois</span></span></div>
     <div class="topbar-right">
       <div class="month-nav">
         <button onclick="changeMonth(-1)" aria-label="Mês anterior">←</button>
@@ -1127,6 +1139,7 @@ function navTo(tab){
 function renderCurrentTab() { renderTab(activeTab); }
 function renderTab(tab) {
   const el = document.getElementById('tabContent');
+  if (tab!=='dashboard') dashEditMode=false; // sai do editor ao trocar de aba
   if (tab==='dashboard') { el.innerHTML=renderDashboard(); initCharts(); }
   else if (tab==='transactions') el.innerHTML=renderTransactions();
   else if (tab==='split') el.innerHTML=renderSplit();
@@ -1436,6 +1449,52 @@ function renderReserveCard(){
     +'<button class="btn-ghost" style="width:100%;margin-top:6px;font-size:.76rem" onclick="reserveAdjust()">± Ajuste manual</button>'
     +'</div>';
 }
+// ---- Início personalizável: cada card é um "widget" que dá pra ocultar/reordenar ----
+const DASH_WIDGETS = [
+  {id:'patrimonio', label:'💎 Patrimônio'},
+  {id:'resumo',     label:'📊 Resumo do mês'},
+  {id:'wallets',    label:'💵 Em conta'},
+  {id:'alerts',     label:'🔔 Alertas'},
+  {id:'cartoes',    label:'💳 Cartões'},
+  {id:'reserva',    label:'🐷 Reserva da fatura'},
+  {id:'sonho',      label:'✈️ Sonho'},
+  {id:'categorias', label:'🏷️ Por categoria'},
+  {id:'fluxo',      label:'📈 Fluxo do mês'},
+  {id:'recentes',   label:'🧾 Últimos lançamentos'},
+];
+let dashEditMode=false;
+// Lê o layout salvo (localStorage) e garante que widgets novos apareçam no fim
+function getDashLayout(){
+  let saved=[]; try{ saved=JSON.parse(localStorage.getItem('dashLayout')||'[]'); }catch(e){}
+  const order=[];
+  saved.forEach(s=>{ if(s&&s.id&&DASH_WIDGETS.some(w=>w.id===s.id)&&!order.find(o=>o.id===s.id)) order.push({id:s.id,hidden:!!s.hidden}); });
+  DASH_WIDGETS.forEach(w=>{ if(!order.find(o=>o.id===w.id)) order.push({id:w.id,hidden:false}); });
+  return order;
+}
+function saveDashLayout(l){ localStorage.setItem('dashLayout',JSON.stringify(l)); }
+function toggleDashEdit(){ dashEditMode=!dashEditMode; renderCurrentTab(); }
+function dashMove(id,dir){ const l=getDashLayout(); const i=l.findIndex(x=>x.id===id); const j=i+dir; if(j<0||j>=l.length) return; const t=l[i]; l[i]=l[j]; l[j]=t; saveDashLayout(l); renderCurrentTab(); }
+function dashToggleHide(id){ const l=getDashLayout(); const it=l.find(x=>x.id===id); if(it){ it.hidden=!it.hidden; saveDashLayout(l); renderCurrentTab(); } }
+function dashReset(){ localStorage.removeItem('dashLayout'); showToast('Tela restaurada','success'); renderCurrentTab(); }
+function renderDashEditor(){
+  const l=getDashLayout();
+  const rows=l.map((x,i)=>{
+    const w=DASH_WIDGETS.find(w=>w.id===x.id)||{label:x.id};
+    return `<div class="dash-edit-row" style="${x.hidden?'opacity:.45':''}">
+      <span class="deh">${w.label}</span>
+      <button class="dash-edit-btn" onclick="dashToggleHide('${x.id}')" title="mostrar/ocultar">${x.hidden?'🙈':'👁'}</button>
+      <button class="dash-edit-btn" onclick="dashMove('${x.id}',-1)" ${i===0?'disabled':''} title="subir">↑</button>
+      <button class="dash-edit-btn" onclick="dashMove('${x.id}',1)" ${i===l.length-1?'disabled':''} title="descer">↓</button>
+    </div>`;
+  }).join('');
+  return `<div class="card fade-up">
+    <div class="card-title">✏️ Personalizar início<button class="btn-ghost" style="font-size:.74rem" onclick="dashReset()">restaurar</button></div>
+    <div style="font-size:.76rem;color:var(--text3);margin:-4px 0 13px">👁 mostra/oculta · ↑ ↓ reordena. Cards sem dados ficam escondidos sozinhos.</div>
+    ${rows}
+    <button class="btn-primary" style="width:100%;margin-top:8px" onclick="toggleDashEdit()">✓ Concluir</button>
+  </div>`;
+}
+
 function renderDashboard() {
   const txs=getMonthTx(), prevTxs=getMonthTx(currentMonth>0?currentMonth-1:11, currentMonth>0?currentYear:currentYear-1);
   const allExp=txs.filter(t=>t.type==='expense');
@@ -1473,7 +1532,8 @@ function renderDashboard() {
   const dreamPct = state.dream ? (()=>{const t=(state.dream.missions||[]).length,dn=(state.dream.missions||[]).filter(m=>m.done).length;return t?Math.round(dn/t*100):0;})() : 0;
   const dreamUsdPct = (state.dream&&state.dream.targetUSD>0)?Math.min(100,(state.dream.savedUSD||0)/state.dream.targetUSD*100):0;
 
-  return `
+  const P={};
+  P.patrimonio = `
   <div class="hero-card fade-up">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div class="hero-label">${isSolo()?'Meu patrimônio':'Patrimônio do casal'}</div>
@@ -1489,9 +1549,9 @@ function renderDashboard() {
       <div class="hero-stat"><div class="hero-stat-lbl">🐷 Reserva fatura</div><div class="hero-stat-val">${fmt(pat.reserva)}</div></div>
       <div class="hero-stat"><div class="hero-stat-lbl">💳 Faturas</div><div class="hero-stat-val" style="color:var(--red)">${pat.faturas>0?'-'+fmt(pat.faturas):fmt(0)}</div></div>
     </div>`}
-  </div>
+  </div>`;
 
-  <div class="card fade-up">
+  P.resumo = `<div class="card fade-up">
     <div class="card-title">Resumo de ${MONTHS_FULL[currentMonth]}</div>
     <div class="dash-grid">
       <div class="dash-tile"><div class="dt-lbl">Receitas</div><div class="dt-val" style="color:var(--green)">${fmt(totalInc)}${trendArrow(totalInc,prevInc)}</div></div>
@@ -1499,43 +1559,42 @@ function renderDashboard() {
       <div class="dash-tile"><div class="dt-lbl">Saldo do mês</div><div class="dt-val" style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmt(balance)}</div></div>
       <div class="dash-tile"><div class="dt-lbl">Contas a pagar</div><div class="dt-val" style="color:var(--orange)">${fmt(toPay)}</div></div>
     </div>
-  </div>
+  </div>`;
 
-  ${renderWalletsCard()}
+  P.wallets = renderWalletsCard();
 
-  ${salaryAlert.length?`<div style="background:#ffd16614;border:1px solid #ffd16633;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;align-items:center;gap:9px">
+  P.alerts = `${salaryAlert.length?`<div style="background:#ffd16614;border:1px solid #ffd16633;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;align-items:center;gap:9px">
     <span style="font-size:1rem">📥</span>
     <div style="flex:1">
       <div style="font-size:.8rem;font-weight:600;color:var(--yellow)">Salário não lançado</div>
       <div style="font-size:.72rem;color:var(--text3)">${salaryAlert.map(p=>p==='p1'?state.p1name:state.p2name).join(' e ')} — ${MONTHS_FULL[currentMonth]}</div>
     </div>
     <button class="btn-ghost" style="color:var(--yellow);font-size:.78rem;padding:5px 8px" onclick="navTo('settings')">Lançar →</button>
-  </div>`:''}
-  ${overBudget.length?`<div style="background:#ff5f7e14;border:1px solid #ff5f7e33;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;align-items:center;gap:9px">
+  </div>`:''}${overBudget.length?`<div style="background:#ff5f7e14;border:1px solid #ff5f7e33;border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:10px;display:flex;align-items:center;gap:9px">
     <span>🚨</span>
     <div style="flex:1">
       <div style="font-size:.8rem;font-weight:600;color:var(--red)">Limite ultrapassado</div>
       <div style="font-size:.72rem;color:var(--text3)">${overBudget.map(([c])=>getCat(c,'expense').name).join(', ')}</div>
     </div>
     <button class="btn-ghost" style="color:var(--red);font-size:.78rem;padding:5px 8px" onclick="navTo('budget')">Ver →</button>
-  </div>`:''}
+  </div>`:''}`;
 
-  ${cards.length?`<div class="card fade-up">
+  P.cartoes = cards.length?`<div class="card fade-up">
     <div class="card-title">💳 Meus cartões<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('settings')">gerenciar →</button></div>
     ${cards.map(c=>{const fat=cardInvoiceTotal(c);const avail=Math.max(0,(c.limit||0)-fat);const st=cardStatus(c);return '<div onclick="navTo(\'settings\')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="display:flex;align-items:center;gap:9px;min-width:0">'+bankAvatar(c.bank,32)+'<div style="min-width:0"><div style="font-size:.86rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+'</div><div class="cc-status"><span class="dot" style="background:'+st.color+'"></span><span style="color:'+st.color+'">'+st.word+'</span><span style="color:var(--text3);font-weight:500"> · disp. '+fmt(avail)+'</span></div></div></div><div style="text-align:right"><div style="font-size:.64rem;color:var(--text3)">fatura '+MONTHS[currentMonth]+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:.88rem">'+fmt(fat)+'</div></div></div>';}).join('')}
-  </div>`:''}
+  </div>`:'';
 
-  ${renderReserveCard()}
+  P.reserva = renderReserveCard();
 
-  ${state.dream?`<div class="card fade-up" style="background:linear-gradient(135deg,#3b3f8f22,#a78bfa11);border-color:#6c8eff33">
+  P.sonho = state.dream?`<div class="card fade-up" style="background:linear-gradient(135deg,#3b3f8f22,#a78bfa11);border-color:#6c8eff33">
     <div class="card-title">${(state.dream.icon||dreamDef().icon)} ${esc(state.dream.title||dreamDef().title)}<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('dream')">abrir →</button></div>
     <div style="display:flex;gap:12px">
       <div style="flex:1"><div style="font-size:.68rem;color:var(--text3)">Missões</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.15rem;color:var(--accent)">${dreamPct}%</div><div class="budget-bar" style="margin-top:4px"><div class="budget-fill" style="width:${dreamPct}%;background:var(--accent)"></div></div></div>
       <div style="flex:1"><div style="font-size:.68rem;color:var(--text3)">${dreamCurrency()==='USD'?'Meta em dólar':'Guardado'}</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.15rem;color:var(--green)">${dreamMoney(state.dream.savedUSD||0)}</div><div class="budget-bar" style="margin-top:4px"><div class="budget-fill" style="width:${dreamUsdPct.toFixed(0)}%;background:var(--green)"></div></div></div>
     </div>
-  </div>`:''}
+  </div>`:'';
 
-  ${sortedCats.length?`<div class="card fade-up" style="animation-delay:.1s">
+  P.categorias = sortedCats.length?`<div class="card fade-up" style="animation-delay:.1s">
     <div class="card-title">Por Categoria</div>
     <div class="cat-grid">
       ${sortedCats.map(([catId,val])=>{
@@ -1543,18 +1602,22 @@ function renderDashboard() {
         return '<div class="cat-item"><div class="cat-header"><span class="cat-icon">'+cat.icon+'</span><span class="cat-name">'+cat.name+'</span></div><div class="cat-amount" style="color:'+cat.color+'">'+fmt(val)+'</div><div class="cat-bar"><div class="cat-bar-fill" style="width:'+(val/maxCat*100).toFixed(1)+'%;background:'+cat.color+'"></div></div></div>';
       }).join('')}
     </div>
-  </div>`:''}
+  </div>`:'';
 
-  <div class="card fade-up" style="animation-delay:.15s">
+  P.fluxo = `<div class="card fade-up" style="animation-delay:.15s">
     <div class="card-title">Fluxo do Mês</div>
     <div class="chart-wrap"><canvas id="flowChart"></canvas></div>
-  </div>
+  </div>`;
 
-  ${recent.length?`<div class="card fade-up" style="animation-delay:.2s">
+  P.recentes = recent.length?`<div class="card fade-up" style="animation-delay:.2s">
     <div class="card-title">Últimos Lançamentos<button class="btn-ghost" style="font-size:.76rem" onclick="navTo('transactions')">ver todos →</button></div>
     <div class="tx-list">${recent.map(t=>renderTxItem(t)).join('')}</div>
-  </div>`:`<div class="card"><div class="empty-state"><div class="e-icon">💸</div><p>Nenhum lançamento em ${MONTHS_FULL[currentMonth]}.<br>Toque no <strong>+</strong> para começar!</p></div></div>`}
-  `;
+  </div>`:`<div class="card"><div class="empty-state"><div class="e-icon">💸</div><p>Nenhum lançamento em ${MONTHS_FULL[currentMonth]}.<br>Toque no <strong>+</strong> para começar!</p></div></div>`;
+
+  if(dashEditMode) return renderDashEditor();
+  const layout=getDashLayout();
+  return layout.filter(x=>!x.hidden).map(x=>P[x.id]||'').join('')
+    + `<button class="dash-customize" onclick="toggleDashEdit()">⚙ Personalizar início</button>`;
 }
 
 function initCharts() {
