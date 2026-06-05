@@ -704,6 +704,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <button class="btn-danger" style="padding:9px 12px" id="btnRemoveBudget" onclick="removeBudget()">Remover</button>
     <button class="btn-primary" style="flex:1.5" onclick="saveBudget()">Salvar</button>
   </div>
+  <button class="btn-ghost" style="width:100%;margin-top:9px;font-size:.8rem;color:var(--text3)" onclick="hideCategory(editingBudgetCatId)">🚫 Não usar esta categoria</button>
 </div></div>
 
 <script>
@@ -850,7 +851,7 @@ function defaultState() {
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
     cardReserve:{balance:0,entries:[],paid:[]},payday:20,paydayCycle:false,theme:'dark',coupleId:null,mode:null,
-    portfolio:{assets:[]},brapiToken:'',wallets:{p1:0,p2:0}};
+    portfolio:{assets:[]},brapiToken:'',wallets:{p1:0,p2:0},hiddenCats:[]};
 }
 function isSolo(){ return state.mode==='solo'; }
 // Usuários antigos (já têm dados) entram como casal sem precisar escolher
@@ -925,7 +926,7 @@ async function pushToFirebase() {
       settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,paydayCycle:state.paydayCycle||false,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||''},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
-      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]}, wallets:state.wallets||{p1:0,p2:0},
+      cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]}, wallets:state.wallets||{p1:0,p2:0}, hiddenCats:state.hiddenCats||[],
       transactions:state.transactions, goals:state.goals,
       members: firebase.firestore.FieldValue.arrayUnion(uid),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -953,6 +954,7 @@ function subscribeFirebase() {
     if (data.cardReserve) state.cardReserve = data.cardReserve;
     if (data.portfolio) state.portfolio = data.portfolio;
     if (data.wallets) state.wallets = data.wallets;
+    if (data.hiddenCats) state.hiddenCats = data.hiddenCats;
     if (data.transactions) state.transactions = data.transactions;
     if (data.goals) state.goals = data.goals;
     localStorage.setItem('nosDoiFinancas', JSON.stringify(state));
@@ -2121,8 +2123,13 @@ function renderBudget() {
     return '<div class="budget-group"><div class="budget-item" onclick="openBudgetModal(\''+catId+'\')"><div class="budget-header"><div class="budget-name">'+cat.icon+' '+cat.name+'</div><div class="budget-vals">'+(limit>0?fmt(spent)+' / '+fmt(limit):'Sem limite — '+fmt(spent)+' gasto')+'</div></div>'+(limit>0?'<div class="budget-bar"><div class="budget-fill '+fillClass+'" style="width:'+pct.toFixed(1)+'%"></div></div>':'')+'</div>'+renderBills(catId)+'</div>';
   }).join('');
 
-  const unusedCats=CATS_EXPENSE.filter(c=>!allSpentCats.includes(c.id));
+  const unusedCats=CATS_EXPENSE.filter(c=>!allSpentCats.includes(c.id) && !catHidden(c.id));
   const addButtons=unusedCats.map(c=>'<div class="budget-add" onclick="openBudgetModal(\''+c.id+'\')" style="margin-bottom:6px">'+c.icon+' '+c.name+' <span style="margin-left:auto;font-size:.82rem">+ Definir limite</span></div>').join('');
+  const hidden=(state.hiddenCats||[]).filter(id=>CATS_EXPENSE.some(c=>c.id===id));
+  const hiddenSection=hidden.length?`<div class="card">
+    <div class="card-title">🚫 Categorias ocultas</div>
+    ${hidden.map(id=>{const c=getCat(id,'expense');return '<div class="budget-add" onclick="unhideCategory(\''+id+'\')" style="margin-bottom:6px;opacity:.7">'+c.icon+' '+c.name+' <span style="margin-left:auto;font-size:.82rem;color:var(--accent)">↩ Restaurar</span></div>';}).join('')}
+  </div>`:'';
 
   return `
   ${renderSalaryPlanner()}
@@ -2133,8 +2140,9 @@ function renderBudget() {
   </div>
   <div class="card">
     <div class="card-title">Adicionar limite por categoria</div>
-    ${addButtons}
-  </div>`;
+    ${addButtons||'<div style="font-size:.82rem;color:var(--text3)">Todas as categorias já estão em uso ou ocultas.</div>'}
+  </div>
+  ${hiddenSection}`;
 }
 
 let editingBudgetCatId = null;
@@ -2196,6 +2204,21 @@ function removeBudget() {
     showToast('Limite removido','info');
     renderCurrentTab(); updateBudgetBadge();
   }
+}
+// Oculta uma categoria de vez (some do orçamento e do lançamento). Dá pra restaurar.
+function catHidden(id){ return (state.hiddenCats||[]).includes(id); }
+function hideCategory(id){
+  if(!id) return;
+  openConfirm('Ocultar a categoria "'+getCat(id,'expense').name+'"? Ela some do orçamento e da lista de lançamento. Dá pra restaurar depois — os lançamentos antigos não mudam.', ()=>{
+    if(!state.hiddenCats) state.hiddenCats=[];
+    if(!state.hiddenCats.includes(id)) state.hiddenCats.push(id);
+    if(state.budgets && state.budgets[id]) delete state.budgets[id];
+    saveState(); closeBudgetModal(); showToast('🚫 Categoria ocultada','info'); renderCurrentTab(); updateBudgetBadge();
+  }, {okLabel:'Ocultar'});
+}
+function unhideCategory(id){
+  state.hiddenCats=(state.hiddenCats||[]).filter(x=>x!==id);
+  saveState(); showToast('✅ Categoria restaurada','success'); renderCurrentTab();
 }
 
 // ============================================================
@@ -3836,7 +3859,11 @@ function setType(type) {
 }
 function populateCats() {
   const sel=document.getElementById('txCat');
-  const cats=currentType==='income'?CATS_INCOME:CATS_EXPENSE;
+  let cats=currentType==='income'?CATS_INCOME:CATS_EXPENSE;
+  if(currentType!=='income'){
+    const keep=editingTxId?((state.transactions.find(t=>t.id===editingTxId)||{}).category):null;
+    cats=cats.filter(c=>!catHidden(c.id)||c.id===keep); // esconde ocultas, mas mantém a do lançamento em edição
+  }
   sel.innerHTML=cats.map(c=>'<option value="'+c.id+'">'+c.icon+' '+c.name+'</option>').join('');
 }
 function setPerson(person,btn) {
