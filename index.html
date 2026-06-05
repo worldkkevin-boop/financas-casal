@@ -75,6 +75,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .cost-val:focus{border-color:var(--accent)}
 .cost-del{flex-shrink:0;background:none;border:none;color:var(--text3);cursor:pointer;font-size:.85rem;padding:4px;opacity:.6}
 .cost-del:active{opacity:1}
+.dream-intro-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:12px}
+.dream-intro-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;background:var(--surface);border:1.5px solid var(--border2);border-radius:var(--radius);padding:16px 14px;cursor:pointer;text-align:left;transition:transform .12s,border-color .15s,background .15s;position:relative;color:var(--text);-webkit-tap-highlight-color:transparent}
+.dream-intro-card:active{transform:scale(.97)}
+.dream-intro-card.current{border-color:var(--accent);background:linear-gradient(135deg,#6c8eff16,#a78bfa12)}
+.dream-intro-card .di-ic{font-size:2rem;margin-bottom:5px;line-height:1}
+.dream-intro-card .di-lb{font-family:var(--font-d);font-weight:800;font-size:1rem}
+.dream-intro-card .di-sb{font-size:.74rem;color:var(--text3)}
+.dream-intro-card .di-now{position:absolute;top:10px;right:10px;font-size:.6rem;font-weight:700;color:var(--accent);background:var(--surface2);border-radius:20px;padding:2px 8px}
 .splash-logo .grad{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .splash-sub{color:var(--text2);font-size:.88rem}
 .pin-dots{display:flex;gap:12px;justify-content:center;margin:4px 0}
@@ -1146,6 +1154,7 @@ function renderCurrentTab() { renderTab(activeTab); }
 function renderTab(tab) {
   const el = document.getElementById('tabContent');
   if (tab!=='dashboard') dashEditMode=false; // sai do editor ao trocar de aba
+  if (tab!=='dream') dreamPicking=false; // sai da troca de sonho ao mudar de aba
   if (tab==='dashboard') { el.innerHTML=renderDashboard(); initCharts(); }
   else if (tab==='transactions') el.innerHTML=renderTransactions();
   else if (tab==='split') el.innerHTML=renderSplit();
@@ -2565,7 +2574,7 @@ function seedDream(type){
   state.dream={
     type:def.id, title:old.title&&old.type===def.id?old.title:def.title, icon:def.icon, currency:def.currency,
     targetUSD:old.targetUSD||0, savedUSD:old.savedUSD||0, usdDeposits:old.usdDeposits||[],
-    usdRate:old.usdRate||0, targetDate:old.targetDate||null,
+    usdRate:old.usdRate||0, targetDate:old.targetDate||null, chosen:old.chosen||false,
     missions:def.missions.map((m,i)=>({id:'m'+i,phase:m.phase,title:m.title,desc:m.desc,done:false,doneDate:null})),
     habits:def.habits.map(h=>({id:uid(),title:h,doneMonths:[]})), seeded:true };
   saveState();
@@ -2580,6 +2589,8 @@ function switchDream(type){
 function ensureDream(){
   if (!state.dream){ seedDream('usa'); }
   const d=state.dream;
+  // Migração: sonho já existente com dados = considera escolhido (não mostra a intro de novo)
+  if(d.chosen===undefined) d.chosen = !!(d.savedUSD || d.targetUSD || d.targetDate || (d.missions&&d.missions.some(m=>m.done)));
   if(!d.type) d.type='usa';
   if(!d.currency) d.currency=dreamDef().currency||'USD';
   if(!d.missions) d.missions=[];
@@ -2602,8 +2613,10 @@ function renderMissionItem(m){
       +(m.done&&m.doneDate?'<div class="mission-date">✅ '+new Date(m.doneDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'})+'</div>':'')
     +'</div><button class="mission-del" onclick="deleteMission(\''+m.id+'\')">🗑</button></div>';
 }
+let dreamPicking=false;
 function renderDream(){
   ensureDream();
+  if(!state.dream.chosen || dreamPicking) return renderDreamIntro();
   const d=state.dream, missions=d.missions;
   const total=missions.length, done=missions.filter(m=>m.done).length;
   const pct=total?Math.round(done/total*100):0;
@@ -2620,11 +2633,7 @@ function renderDream(){
   const customItems=missions.filter(m=>m.phase>=99);
   if(customItems.length) groups.push({id:99,icon:'⭐',name:'Missões personalizadas',sub:'Criadas por vocês',items:customItems});
 
-  const chooser=`<div class="dream-choices">${DREAM_CHOICES.map(ch=>
-    '<button class="dream-choice'+(((d.type||'usa')===ch.type)?' active':'')+'" onclick="switchDream(\''+ch.type+'\')"><span class="dc-ic">'+ch.icon+'</span><span class="dc-lb">'+ch.label+'</span><span class="dc-sb">'+ch.sub+'</span></button>').join('')}</div>`;
-
   return `
-  ${chooser}
   <div class="dream-hero">
     <div class="dream-hero-glow"></div>
     <div style="position:relative">
@@ -2680,10 +2689,41 @@ function renderDream(){
     return '<div class="card'+(complete?' phase-complete':'')+'"><div class="phase-head"><div><div class="phase-name">'+g.icon+' '+esc(g.name)+(complete?' 🎉':'')+'</div><div class="phase-sub">'+esc(g.sub||'')+'</div></div><div class="phase-count">'+gd+'/'+gt+'</div></div><div class="phase-bar"><div class="phase-bar-fill" style="width:'+gpct+'%"></div></div>'+g.items.map(m=>renderMissionItem(m)).join('')+'</div>';
   }).join('')}
 
-  <button class="btn-secondary" style="width:100%;margin-bottom:12px" onclick="addMission()">+ Criar missão personalizada</button>
+  <button class="btn-secondary" style="width:100%;margin-bottom:10px" onclick="addMission()">+ Criar missão personalizada</button>
+  <button class="btn-ghost" style="width:100%;margin-bottom:10px;font-size:.8rem;color:var(--text3)" onclick="changeDream()">🔄 Trocar de sonho</button>
   <div style="font-size:.7rem;color:var(--text3);text-align:center;padding:0 10px 14px;line-height:1.5">${isUSD?'⚠️ As missões são um guia para organizar o sonho. Confirmem os detalhes de visto e imigração nas fontes oficiais (consulado dos EUA) e, se possível, com um advogado de imigração.':'⚠️ As missões são um guia para organizar o sonho. Adaptem à realidade de vocês — é só tocar pra concluir, criar ou apagar missões.'}</div>
   `;
 }
+function renderDreamIntro(){
+  ensureDream();
+  const changing = state.dream && state.dream.chosen;
+  const cur = state.dream && state.dream.type;
+  return `
+  <div class="dream-hero" style="text-align:center">
+    <div class="dream-hero-glow"></div>
+    <div style="position:relative">
+      <div style="font-size:2.1rem;margin-bottom:2px">✨</div>
+      <div style="font-family:var(--font-d);font-weight:800;font-size:1.45rem;color:#fff;line-height:1.2">${changing?'Trocar de sonho':(isSolo()?'Qual é o seu grande sonho?':'Qual é o grande sonho de vocês?')}</div>
+      <div style="font-size:.83rem;color:#ffffffcc;margin-top:7px;padding:0 6px">${changing?'Escolha o novo objetivo. O quanto vocês já guardaram é mantido. 💚':'Escolha o objetivo que vão conquistar juntos. Dá pra mudar depois, sem perder o que guardaram.'}</div>
+    </div>
+  </div>
+  <div class="dream-intro-grid">
+    ${DREAM_CHOICES.map(ch=>`<button class="dream-intro-card${cur===ch.type?' current':''}" onclick="pickDream('${ch.type}')"><span class="di-ic">${ch.icon}</span><span class="di-lb">${ch.label}</span><span class="di-sb">${ch.sub}</span>${cur===ch.type&&changing?'<span class="di-now">atual</span>':''}</button>`).join('')}
+  </div>
+  ${changing?'<button class="btn-secondary" style="width:100%" onclick="cancelDreamPick()">← Voltar sem trocar</button>':''}
+  `;
+}
+function pickDream(type){
+  ensureDream();
+  if(!DREAMS[type]) return;
+  if(state.dream.chosen && state.dream.type===type){ dreamPicking=false; renderCurrentTab(); return; }
+  const apply=()=>{ seedDream(type); state.dream.chosen=true; dreamPicking=false; saveState(); showToast(DREAMS[type].icon+' '+DREAMS[type].title+'!','success'); renderCurrentTab(); };
+  if(state.dream.chosen && state.dream.type!==type){
+    openConfirm('Trocar para "'+DREAMS[type].title+'"? As missões passam a ser as desse sonho. O quanto vocês já guardaram é mantido. 💚', apply, {okLabel:'Trocar'});
+  } else apply();
+}
+function changeDream(){ dreamPicking=true; if(activeTab!=='dream'){ navTo('dream'); } else { renderCurrentTab(); } }
+function cancelDreamPick(){ dreamPicking=false; renderCurrentTab(); }
 // ---- Quanto custa o sonho (calculadora) ----
 function costTotal(){ ensureDream(); return (state.dream.costItems||[]).reduce((s,c)=>s+(+c.value||0),0); }
 function renderCostCard(){
@@ -3342,6 +3382,8 @@ function renderSettings() {
     <div class="setting-row"><div><div class="setting-label">Mês começa no dia do pagamento</div><div class="setting-sub">${state.paydayCycle?('Ativo — o mês vai do dia '+(state.payday||20)+' ao dia '+(state.payday||20)+' do mês seguinte'):'Mês normal (dia 1 ao fim). Ative pra alinhar com o salário.'}</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="togglePaydayCycle()">${state.paydayCycle?'✓ Ativo':'Ativar'}</button></div>
     <div class="divider"></div>
     <div class="setting-row"><div><div class="setting-label">Modo de uso</div><div class="setting-sub">${isSolo()?'🧍 Solo — só você':'💑 Casal — vocês dois'}</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="toggleMode()">Trocar p/ ${isSolo()?'Casal 💑':'Solo 🧍'}</button></div>
+    <div class="divider"></div>
+    <div class="setting-row"><div><div class="setting-label">Sonho atual</div><div class="setting-sub">${state.dream&&state.dream.chosen?(dreamDef().icon+' '+esc(state.dream.title||dreamDef().title)):'Nenhum escolhido ainda'}</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="changeDream()">🔄 Trocar</button></div>
   </div>
   ${renderCardsSection()}
   <div class="card">
