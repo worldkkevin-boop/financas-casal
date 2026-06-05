@@ -2692,22 +2692,27 @@ function renderCostCard(){
   const items=state.dream.costItems||[];
   const tot=costTotal();
   const rate=state.dream.usdRate||0;
+  const open=localStorage.getItem('costOpen')==='1';
+  const head=`<div class="card-title" style="cursor:pointer;margin-bottom:${open?'12px':'0'}" onclick="toggleCostCard()"><span>🧮 Quanto custa o sonho?</span><span style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0"><span style="font-family:var(--font-d);font-weight:800;font-size:.95rem;color:var(--accent)">${dreamMoney(tot)}</span><span style="color:var(--text3);font-size:.78rem;display:inline-block;transition:transform .2s;${open?'transform:rotate(90deg)':''}">▶</span></span></div>`;
+  if(!open) return `<div class="card">${head}</div>`;
   const rows=items.map(c=>`<div style="display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--border)">
     <input class="cost-name" value="${esc(c.label)}" onchange="setCostLabel('${c.id}',this.value)"/>
     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><span style="font-size:.72rem;color:var(--text3)">${isUSD?'US$':'R$'}</span><input class="cost-val" type="number" inputmode="decimal" value="${c.value||''}" onchange="setCostValue('${c.id}',this.value)"/></div>
     <button class="cost-del" onclick="delCostItem('${c.id}')">🗑</button>
   </div>`).join('');
   return `<div class="card">
-    <div class="card-title">🧮 Quanto custa o sonho?<button class="btn-ghost" style="font-size:.72rem" onclick="resetCostItems()">restaurar</button></div>
-    <div style="font-size:.76rem;color:var(--text3);margin:-6px 0 10px">Estimativa dos custos — ajuste os valores pra sua realidade. Eu somo tudo e viro a sua meta. 👇</div>
+    ${head}
+    <div style="font-size:.76rem;color:var(--text3);margin:0 0 10px">Estimativa dos custos — ajuste os valores pra sua realidade. Eu somo tudo e viro a sua meta. 👇</div>
     ${rows||'<div style="font-size:.82rem;color:var(--text3);padding:6px 0">Sem itens. Toque em <strong>+ adicionar</strong>.</div>'}
     <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:.8rem;color:var(--accent)" onclick="addCostItem()">+ adicionar item</button>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:12px;padding-top:11px;border-top:1.5px solid var(--border2)">
       <div><div style="font-size:.72rem;color:var(--text3)">Custo total estimado</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.35rem;color:var(--accent)">${dreamMoney(tot)}</div>${isUSD&&rate>0?`<div style="font-size:.72rem;color:var(--cyan)">≈ ${fmt(tot*rate)}</div>`:''}</div>
       <button class="btn-primary" style="padding:10px 14px;white-space:nowrap" onclick="applyCostAsTarget()">🎯 Usar como meta</button>
     </div>
+    <div style="text-align:center;margin-top:9px"><button class="btn-ghost" style="font-size:.72rem;color:var(--text3)" onclick="resetCostItems()">restaurar lista padrão</button></div>
   </div>`;
 }
+function toggleCostCard(){ const o=localStorage.getItem('costOpen')==='1'; localStorage.setItem('costOpen', o?'0':'1'); renderCurrentTab(); }
 function setCostLabel(id,v){ ensureDream(); const c=state.dream.costItems.find(x=>x.id===id); if(c){ c.label=(v||'').trim()||'Item'; saveState(); } }
 function setCostValue(id,v){ ensureDream(); const c=state.dream.costItems.find(x=>x.id===id); if(c){ c.value=Math.max(0,+v||0); saveState(); renderCurrentTab(); } }
 function addCostItem(){ ensureDream(); state.dream.costItems.push({id:uid(),label:'Novo item',value:0}); saveState(); renderCurrentTab(); }
