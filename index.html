@@ -1310,23 +1310,38 @@ function faturasDoMes(m,y){
   return (state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c,mo,yr),0);
 }
 function portfolioTotal(){ ensurePortfolio(); return (state.portfolio.assets||[]).reduce((s,a)=>s+assetValue(a),0); }
-function ensureWallets(){ if(!state.wallets) state.wallets={p1:0,p2:0}; }
-function walletsTotal(){ ensureWallets(); return (state.wallets.p1||0)+(isSolo()?0:(state.wallets.p2||0)); }
+function ensureWallets(){ if(!state.wallets) state.wallets={p1:0,p2:0,p1d:null,p2d:null}; }
+// Saldo VIVO: base informada + entradas − gastos (não-crédito) dessa pessoa desde a data da base
+function walletBalance(p){
+  ensureWallets();
+  const base=state.wallets[p]||0;
+  const since=state.wallets[p+'d'];
+  if(!since) return base; // sem data base = mostra o valor informado (ainda não rastreia)
+  let mov=0;
+  (state.transactions||[]).forEach(t=>{
+    if(t.person!==p || t.transfer) return;
+    if(t.payment==='credito') return;            // crédito vai pra fatura, não sai da conta agora
+    if((t.date||'') < since) return;             // só conta movimentos depois da base
+    mov += (t.type==='income') ? (t.amount||0) : -(t.amount||0);
+  });
+  return base+mov;
+}
+function walletsTotal(){ ensureWallets(); return walletBalance('p1')+(isSolo()?0:walletBalance('p2')); }
 function setWallet(p){
   ensureWallets();
   const nome=p==='p1'?state.p1name:state.p2name;
   openInputModal('💵 Saldo em conta — '+nome,[
-    {key:'v',label:'Quanto '+nome+' tem em conta (R$)',type:'number',step:'0.01',value:state.wallets[p]||'',placeholder:'0,00'}
-  ], vals=>{ state.wallets[p]=Math.max(0,parseFloat(vals.v)||0); saveState(); renderCurrentTab(); });
+    {key:'v',label:'Quanto '+nome+' tem AGORA na conta (R$)',type:'number',step:'0.01',value:state.wallets[p]||'',placeholder:'0,00'}
+  ], vals=>{ state.wallets[p]=Math.max(0,parseFloat(vals.v)||0); state.wallets[p+'d']=new Date().toISOString().slice(0,10); saveState(); renderCurrentTab(); });
 }
 function renderWalletsCard(){
   ensureWallets();
   const total=walletsTotal();
-  const row=(p,cls)=>'<div onclick="setWallet(\''+p+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer"><span class="chip '+cls+'">'+esc(p==='p1'?state.p1name:state.p2name)+'</span><span style="font-family:var(--font-d);font-weight:700">'+fmt(state.wallets[p]||0)+' <span style="opacity:.5;font-size:.8rem">✏️</span></span></div>';
+  const row=(p,cls)=>'<div onclick="setWallet(\''+p+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer"><span class="chip '+cls+'">'+esc(p==='p1'?state.p1name:state.p2name)+'</span><span style="font-family:var(--font-d);font-weight:700">'+fmt(walletBalance(p))+' <span style="opacity:.5;font-size:.8rem">✏️</span></span></div>';
   let html='<div class="card fade-up"><div class="card-title">💵 Em conta'+(isSolo()?'':' (de cada um)')+'<span style="font-size:.9rem;color:var(--cyan);font-family:var(--font-d);font-weight:800">'+fmt(total)+'</span></div>';
   html+=row('p1','p1');
   if(!isSolo()) html+=row('p2','p2');
-  html+='<div style="font-size:.68rem;color:var(--text3);text-align:center;margin-top:7px">Toque no valor pra atualizar</div></div>';
+  html+='<div style="font-size:.68rem;color:var(--text3);text-align:center;margin-top:7px">Toque pra definir o saldo. Os gastos no débito/pix de cada um já descontam sozinhos.</div></div>';
   return html;
 }
 function patrimonioTotal(){
