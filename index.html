@@ -69,6 +69,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .dash-edit-btn:disabled{opacity:.3;cursor:default}
 .dash-customize{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin:10px 0 2px;padding:11px;background:none;border:1px dashed var(--border3);border-radius:var(--radius-sm);color:var(--text3);cursor:pointer;font-family:var(--font-b);font-size:.8rem;font-weight:600;transition:all .15s}
 .dash-customize:active{transform:scale(.98)}
+.cost-name{flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:var(--font-b);font-size:.85rem;padding:4px 2px;outline:none}
+.cost-name:focus{border-bottom-color:var(--accent2)}
+.cost-val{width:88px;background:var(--surface2);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:var(--font-d);font-weight:700;font-size:.85rem;padding:5px 7px;outline:none;text-align:right}
+.cost-val:focus{border-color:var(--accent)}
+.cost-del{flex-shrink:0;background:none;border:none;color:var(--text3);cursor:pointer;font-size:.85rem;padding:4px;opacity:.6}
+.cost-del:active{opacity:1}
 .splash-logo .grad{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .splash-sub{color:var(--text2);font-size:.88rem}
 .pin-dots{display:flex;gap:12px;justify-content:center;margin:4px 0}
@@ -2511,6 +2517,44 @@ const DREAM_CHOICES = [
   {type:'casa_construir',icon:'🏠', label:'Casa — Construir',  sub:'Construir do zero'},
   {type:'veiculo',       icon:'🚗', label:'Veículo',          sub:'Carro ou moto'},
 ];
+// Estimativa de custos por sonho (editável). USA em US$, os demais em R$.
+const DREAM_COSTS = {
+  usa: [
+    {label:'Passaporte (2 pessoas)', value:500},
+    {label:'Cursos / provas de inglês', value:1500},
+    {label:'Tradução juramentada + apostilamento', value:600},
+    {label:'Advogado de imigração', value:5000},
+    {label:'Taxas de visto / aplicação', value:2000},
+    {label:'Exames médicos e vacinas', value:800},
+    {label:'Passagens aéreas (2)', value:2000},
+    {label:'Moradia — 1º mês + depósito', value:4000},
+    {label:'Reserva p/ os 3 primeiros meses', value:9000},
+    {label:'Imprevistos', value:2000},
+  ],
+  casa_comprar: [
+    {label:'Entrada / sinal', value:40000},
+    {label:'ITBI + escritura + cartório', value:8000},
+    {label:'Mudança', value:2000},
+    {label:'Móveis e reforma inicial', value:15000},
+    {label:'Reserva de segurança', value:10000},
+  ],
+  casa_construir: [
+    {label:'Terreno', value:60000},
+    {label:'Projeto + documentação', value:8000},
+    {label:'Fundação e estrutura', value:50000},
+    {label:'Alvenaria e cobertura', value:45000},
+    {label:'Acabamento', value:40000},
+    {label:'Ligações (água/luz/esgoto)', value:6000},
+    {label:'Imprevistos (10%)', value:20000},
+  ],
+  veiculo: [
+    {label:'Valor do veículo', value:45000},
+    {label:'Transferência + documentação', value:2500},
+    {label:'Seguro (1º ano)', value:3000},
+    {label:'IPVA + licenciamento', value:1500},
+    {label:'Reserva p/ manutenção', value:2000},
+  ],
+};
 function dreamDef(){ return DREAMS[(state.dream&&state.dream.type)||'usa']||DREAMS.usa; }
 function dreamCurrency(){ return (state.dream&&state.dream.currency)||dreamDef().currency||'USD'; }
 // Formata na moeda do sonho (dólar p/ EUA, real p/ casa)
@@ -2541,6 +2585,7 @@ function ensureDream(){
   if(!d.missions) d.missions=[];
   if(!d.habits) d.habits=[];
   if(!d.usdDeposits) d.usdDeposits=[];
+  if(!d.costItems) d.costItems=(DREAM_COSTS[d.type]||[]).map(c=>({id:uid(),label:c.label,value:c.value}));
 }
 function fmtUSD(v){ return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v||0); }
 function dreamMonthsLeft(){
@@ -2593,6 +2638,7 @@ function renderDream(){
         <input type="month" class="dream-date-input" value="${d.targetDate||''}" onchange="setDreamDate(this.value)"/>
         ${ml!==null?`<span style="font-size:.74rem;color:#fff;font-weight:600">${ml>0?'faltam '+ml+' meses':'é agora! 🎉'}</span>`:''}
       </div>
+      <button onclick="shareDreamCard()" style="margin-top:15px;background:#ffffff1f;border:1px solid #ffffff3a;color:#fff;border-radius:11px;padding:10px 18px;font-family:var(--font-d);font-weight:700;font-size:.83rem;cursor:pointer">📸 Compartilhar conquista</button>
     </div>
   </div>
 
@@ -2615,6 +2661,8 @@ function renderDream(){
     <button class="btn-ghost" style="width:100%;margin-top:4px;font-size:.78rem;color:var(--cyan)" onclick="updateUsdRateNow()">🔄 Buscar cotação de hoje (online)</button>`:''}
   </div>
 
+  ${renderCostCard()}
+
   ${renderDollarHistory()}
 
   <div class="card">
@@ -2635,6 +2683,100 @@ function renderDream(){
   <button class="btn-secondary" style="width:100%;margin-bottom:12px" onclick="addMission()">+ Criar missão personalizada</button>
   <div style="font-size:.7rem;color:var(--text3);text-align:center;padding:0 10px 14px;line-height:1.5">${isUSD?'⚠️ As missões são um guia para organizar o sonho. Confirmem os detalhes de visto e imigração nas fontes oficiais (consulado dos EUA) e, se possível, com um advogado de imigração.':'⚠️ As missões são um guia para organizar o sonho. Adaptem à realidade de vocês — é só tocar pra concluir, criar ou apagar missões.'}</div>
   `;
+}
+// ---- Quanto custa o sonho (calculadora) ----
+function costTotal(){ ensureDream(); return (state.dream.costItems||[]).reduce((s,c)=>s+(+c.value||0),0); }
+function renderCostCard(){
+  ensureDream();
+  const isUSD=dreamCurrency()==='USD';
+  const items=state.dream.costItems||[];
+  const tot=costTotal();
+  const rate=state.dream.usdRate||0;
+  const rows=items.map(c=>`<div style="display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--border)">
+    <input class="cost-name" value="${esc(c.label)}" onchange="setCostLabel('${c.id}',this.value)"/>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><span style="font-size:.72rem;color:var(--text3)">${isUSD?'US$':'R$'}</span><input class="cost-val" type="number" inputmode="decimal" value="${c.value||''}" onchange="setCostValue('${c.id}',this.value)"/></div>
+    <button class="cost-del" onclick="delCostItem('${c.id}')">🗑</button>
+  </div>`).join('');
+  return `<div class="card">
+    <div class="card-title">🧮 Quanto custa o sonho?<button class="btn-ghost" style="font-size:.72rem" onclick="resetCostItems()">restaurar</button></div>
+    <div style="font-size:.76rem;color:var(--text3);margin:-6px 0 10px">Estimativa dos custos — ajuste os valores pra sua realidade. Eu somo tudo e viro a sua meta. 👇</div>
+    ${rows||'<div style="font-size:.82rem;color:var(--text3);padding:6px 0">Sem itens. Toque em <strong>+ adicionar</strong>.</div>'}
+    <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:.8rem;color:var(--accent)" onclick="addCostItem()">+ adicionar item</button>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:12px;padding-top:11px;border-top:1.5px solid var(--border2)">
+      <div><div style="font-size:.72rem;color:var(--text3)">Custo total estimado</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.35rem;color:var(--accent)">${dreamMoney(tot)}</div>${isUSD&&rate>0?`<div style="font-size:.72rem;color:var(--cyan)">≈ ${fmt(tot*rate)}</div>`:''}</div>
+      <button class="btn-primary" style="padding:10px 14px;white-space:nowrap" onclick="applyCostAsTarget()">🎯 Usar como meta</button>
+    </div>
+  </div>`;
+}
+function setCostLabel(id,v){ ensureDream(); const c=state.dream.costItems.find(x=>x.id===id); if(c){ c.label=(v||'').trim()||'Item'; saveState(); } }
+function setCostValue(id,v){ ensureDream(); const c=state.dream.costItems.find(x=>x.id===id); if(c){ c.value=Math.max(0,+v||0); saveState(); renderCurrentTab(); } }
+function addCostItem(){ ensureDream(); state.dream.costItems.push({id:uid(),label:'Novo item',value:0}); saveState(); renderCurrentTab(); }
+function delCostItem(id){ ensureDream(); state.dream.costItems=state.dream.costItems.filter(x=>x.id!==id); saveState(); renderCurrentTab(); }
+function applyCostAsTarget(){ ensureDream(); const t=Math.round(costTotal()); state.dream.targetUSD=t; saveState(); showToast('🎯 Meta definida: '+dreamMoney(t),'success'); renderCurrentTab(); }
+function resetCostItems(){ ensureDream(); openConfirm('Restaurar a lista de custos padrão deste sonho? Os valores que você editou serão perdidos.', ()=>{ state.dream.costItems=(DREAM_COSTS[state.dream.type]||[]).map(c=>({id:uid(),label:c.label,value:c.value})); saveState(); renderCurrentTab(); }, {okLabel:'Restaurar'}); }
+
+// ---- Card de conquista compartilhável (gera imagem com canvas) ----
+function _roundRect(x,X,Y,w,h,r){ x.beginPath(); x.moveTo(X+r,Y); x.arcTo(X+w,Y,X+w,Y+h,r); x.arcTo(X+w,Y+h,X,Y+h,r); x.arcTo(X,Y+h,X,Y,r); x.arcTo(X,Y,X+w,Y,r); x.closePath(); }
+function _wrapText(x,text,cx,cy,maxW,lh){
+  const words=String(text).split(' '); let line='',lines=[];
+  words.forEach(w=>{ const t=line?line+' '+w:w; if(x.measureText(t).width>maxW&&line){ lines.push(line); line=w; } else line=t; });
+  if(line) lines.push(line);
+  lines.forEach((l,i)=>x.fillText(l,cx,cy+i*lh));
+  return lines.length;
+}
+function _drawRings(ctx,cx,cy,r,sw){
+  const gA=ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r); gA.addColorStop(0,'#6c8eff'); gA.addColorStop(1,'#7af3d8');
+  const gB=ctx.createLinearGradient(cx+r,cy-r,cx+2*r+18,cy+r); gB.addColorStop(0,'#a78bfa'); gB.addColorStop(1,'#ff79c6');
+  ctx.lineWidth=sw;
+  ctx.strokeStyle=gA; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle=gB; ctx.beginPath(); ctx.arc(cx+r+18,cy,r,0,Math.PI*2); ctx.stroke();
+}
+async function shareDreamCard(){
+  ensureDream();
+  const d=state.dream, missions=d.missions||[];
+  const total=missions.length, done=missions.filter(m=>m.done).length;
+  const pct=total?Math.round(done/total*100):0;
+  const saved=d.savedUSD||0, target=d.targetUSD||0;
+  try{ if(document.fonts&&document.fonts.ready) await document.fonts.ready; }catch(e){}
+  const W=1080,H=1350, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const x=cv.getContext('2d'); x.textAlign='center';
+  const bg=x.createLinearGradient(0,0,W,H); bg.addColorStop(0,'#171b29'); bg.addColorStop(1,'#0b0d13');
+  x.fillStyle=bg; x.fillRect(0,0,W,H);
+  const glow=x.createRadialGradient(W/2,430,40,W/2,430,560); glow.addColorStop(0,'rgba(108,142,255,0.22)'); glow.addColorStop(1,'rgba(108,142,255,0)');
+  x.fillStyle=glow; x.fillRect(0,0,W,H);
+  _drawRings(x, W/2-44, 245, 72, 27);
+  x.fillStyle='rgba(255,255,255,0.55)'; x.font='600 30px "Plus Jakarta Sans",sans-serif';
+  x.fillText(isSolo()?'MEU SONHO':'NOSSO SONHO', W/2, 470);
+  x.fillStyle='#fff'; x.font='800 76px "Plus Jakarta Sans",sans-serif';
+  const nl=_wrapText(x, d.title||dreamDef().title, W/2, 560, 940, 84);
+  const yBase=560+(nl-1)*84;
+  x.fillStyle='#7af3d8'; x.font='800 190px "Plus Jakarta Sans",sans-serif';
+  x.fillText(pct+'%', W/2, yBase+290);
+  x.fillStyle='rgba(255,255,255,0.85)'; x.font='500 40px "Plus Jakarta Sans",sans-serif';
+  x.fillText(done+' de '+total+' missões concluídas', W/2, yBase+360);
+  const bw=820, bx=(W-bw)/2, by=yBase+405, bh=26;
+  x.fillStyle='rgba(255,255,255,0.12)'; _roundRect(x,bx,by,bw,bh,13); x.fill();
+  const fgr=x.createLinearGradient(bx,0,bx+bw,0); fgr.addColorStop(0,'#6c8eff'); fgr.addColorStop(1,'#a78bfa');
+  x.fillStyle=fgr; _roundRect(x,bx,by,Math.max(bh,bw*pct/100),bh,13); x.fill();
+  if(target>0){
+    x.fillStyle='rgba(255,255,255,0.92)'; x.font='700 44px "Plus Jakarta Sans",sans-serif';
+    x.fillText(dreamMoney(saved)+'  de  '+dreamMoney(target), W/2, by+95);
+    x.fillStyle='rgba(255,255,255,0.42)'; x.font='500 30px "Plus Jakarta Sans",sans-serif';
+    x.fillText('guardado rumo ao objetivo', W/2, by+140);
+  }
+  if(d.targetDate){ const p=d.targetDate.split('-'); x.fillStyle='rgba(255,255,255,0.5)'; x.font='600 32px "Plus Jakarta Sans",sans-serif'; x.fillText('🎯 meta: '+p[1]+'/'+p[0], W/2, 1245); }
+  x.fillStyle='rgba(255,255,255,0.9)'; x.font='800 40px "Plus Jakarta Sans",sans-serif';
+  x.fillText('Nós Dois · finanças', W/2, 1300);
+  cv.toBlob(async (blob)=>{
+    if(!blob){ showToast('Não consegui gerar a imagem','error'); return; }
+    const file=new File([blob],'nosso-sonho.png',{type:'image/png'});
+    const shareData={files:[file], title:'Nosso Sonho', text:(d.title||'Nosso sonho')+' — '+pct+'% concluído! 🚀'};
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share(shareData); return; }catch(e){ if(e&&e.name==='AbortError') return; }
+    }
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='nosso-sonho.png'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),3000); showToast('📥 Imagem salva!','success');
+  },'image/png');
 }
 function setDreamTitle(v){ ensureDream(); state.dream.title=(v||'').trim()||dreamDef().title; saveState(); }
 function setDreamTarget(v){ ensureDream(); state.dream.targetUSD=v||0; saveState(); renderCurrentTab(); }
@@ -2662,9 +2804,19 @@ function setDreamDate(v){ ensureDream(); state.dream.targetDate=v||null; saveSta
 function toggleMission(id){
   ensureDream();
   const m=state.dream.missions.find(x=>x.id===id); if(!m) return;
+  const ph=m.phase;
   m.done=!m.done; m.doneDate=m.done?new Date().toISOString().slice(0,10):null;
   saveState();
-  if(m.done) showToast('✅ Missão concluída: '+m.title,'success');
+  if(m.done){
+    showToast('✅ Missão concluída: '+m.title,'success');
+    // Concluiu a fase inteira agora? Oferece o card de conquista.
+    const fase=state.dream.missions.filter(x=>x.phase===ph);
+    if(fase.length && fase.every(x=>x.done)){
+      const pdef=(dreamDef().phases||[]).find(p=>p.id===ph);
+      const nome=pdef?pdef.name:'Fase';
+      setTimeout(()=>openConfirm('🎉 Vocês concluíram "'+nome+'"! Quer gerar um card pra compartilhar essa conquista?', ()=>shareDreamCard(), {okLabel:'📸 Compartilhar'}), 400);
+    }
+  }
   renderCurrentTab();
 }
 function deleteMission(id){
