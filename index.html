@@ -800,7 +800,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v11'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v12'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1209,6 +1209,7 @@ function openConfirm(message, onYes, opts){
   opts=opts||{};
   document.getElementById('confirmMsg').innerHTML=esc(message).replace(/\n/g,'<br>');
   const ok=document.getElementById('confirmOk');
+  ok.style.display=''; // garante OK visível (o "quem fez?" esconde temporariamente)
   ok.textContent=opts.okLabel||'Confirmar';
   ok.onclick=()=>{ closeConfirm(); if(onYes) onYes(); };
   const alt=document.getElementById('confirmAlt');
@@ -2364,6 +2365,11 @@ const DREAM_MISSIONS = [
   {phase:0, title:'Guardar o primeiro dólar 💵', desc:'Começar a meta — todo começo conta!'},
   {phase:0, title:'Começar aulas de inglês (os dois)', desc:'App, curso ou professor — o importante é começar já.'},
   {phase:0, title:'Montar reserva de emergência no Brasil', desc:'Antes de tudo, uma rede de segurança para imprevistos.'},
+  {phase:0, title:'Abrir uma conta global (Wise, Nomad ou C6)', desc:'Câmbio comercial e menos taxa que cartão de crédito pra comprar dólar. Comparem antes de escolher.'},
+  {phase:0, title:'Definir a estratégia de aportes mensais (DCA)', desc:'Comprar dólar todo mês no mesmo dia (Dollar-Cost Averaging) dilui a variação do câmbio e tira a ansiedade de "acertar a cotação".'},
+  {phase:0, title:'Conversar com brasileiros que já moram lá', desc:'Grupos, fóruns e redes sociais. Quem já fez a mudança dá os melhores conselhos sobre custo de vida e adaptação.'},
+  {phase:0, title:'Calcular o custo de vida da cidade alvo', desc:'Aluguel, mercado, transporte e saúde. Sites como Numbeo ajudam a estimar quanto vão gastar por mês.'},
+  {phase:0, title:'Definir o que fazer com a carreira de cada um', desc:'Pesquisar se a profissão de vocês exige licença/validação nos EUA e como funciona o mercado lá.'},
   // FASE 2
   {phase:1, title:'Tirar ou renovar o passaporte dos dois', desc:'Validade de 10 anos. Primeiro documento essencial.'},
   {phase:1, title:'Atingir inglês básico sólido', desc:'Conseguir se virar em conversas do dia a dia.'},
@@ -2375,15 +2381,20 @@ const DREAM_MISSIONS = [
   {phase:1, title:'Renovar a CNH e tirar a Permissão Internacional', desc:'Útil para dirigir nos primeiros tempos.'},
   {phase:1, title:'Atualizar vacinas e exames de saúde', desc:'Carteira de vacinação em dia.'},
   {phase:1, title:'Organizar comprovações financeiras', desc:'Extratos, imposto de renda e comprovantes guardados e organizados.'},
+  {phase:1, title:'Digitalizar e fazer backup dos documentos', desc:'Tudo escaneado na nuvem (Drive/Dropbox). Se perder o original, vocês têm cópia em qualquer lugar.'},
+  {phase:1, title:'Verificar vínculos que comprovam intenção de retorno', desc:'Pra visto de visitante/estudo, mostrar laços com o Brasil (emprego, bens, família) ajuda na entrevista.'},
   // FASE 3
   {phase:2, title:'Consultar um advogado de imigração ⚖️', desc:'Orientação profissional do caminho certo para o seu caso.'},
   {phase:2, title:'Inscrever-se na loteria do Green Card (DV)', desc:'Se aplicável — atenção ao período de inscrição (geralmente fim do ano).'},
   {phase:2, title:'Reunir toda a papelada exigida pelo visto', desc:'Checklist completo conforme o tipo de visto escolhido.'},
   {phase:2, title:'Preencher os formulários oficiais (ex.: DS-160)', desc:'Com calma e atenção — erros atrasam o processo.'},
   {phase:2, title:'Pagar as taxas do visto', desc:'Guardar todos os comprovantes.'},
+  {phase:2, title:'⏰ Ficar de olho na validade do recibo MRV', desc:'O recibo da taxa MRV ($185) expira 365 dias após o pagamento. Agendem a entrevista dentro desse prazo pra não pagar de novo.'},
   {phase:2, title:'Agendar a entrevista no consulado', desc:'CASV (biometria) e a entrevista em si.'},
   {phase:2, title:'Preparar-se para a entrevista', desc:'Treinar perguntas, separar documentos e praticar o inglês.'},
+  {phase:2, title:'Simular a entrevista em inglês', desc:'Treinar as perguntas mais comuns em voz alta, um ajudando o outro. Confiança no dia faz diferença.'},
   {phase:2, title:'Fazer a entrevista no consulado 🎤', desc:'O grande passo do processo. Respirem fundo!'},
+  {phase:2, title:'Conferir o status do visto no sistema (CEAC)', desc:'Acompanhar online o andamento do processo depois da entrevista, até sair "Issued".'},
   {phase:2, title:'Atingir inglês avançado', desc:'Para trabalho, entrevistas e a vida no novo país.'},
   {phase:2, title:'Montar o currículo no formato americano', desc:'Resume dos dois, no padrão dos EUA.'},
   // FASE 4
@@ -2395,6 +2406,9 @@ const DREAM_MISSIONS = [
   {phase:3, title:'Decidir o que levar, vender e guardar', desc:'Planejar a mudança com antecedência.'},
   {phase:3, title:'Contratar seguro saúde / seguro viagem', desc:'Proteção para a chegada.'},
   {phase:3, title:'Garantir um cartão internacional', desc:'Para usar nos primeiros dias lá.'},
+  {phase:3, title:'Abrir conta bancária americana (ou deixar pré-aprovada)', desc:'Alguns bancos permitem iniciar a abertura ainda do Brasil. Facilita receber salário e pagar contas ao chegar.'},
+  {phase:3, title:'Providenciar o SSN ao chegar', desc:'O Social Security Number é a base de tudo nos EUA — emprego, crédito, contas. Solicitem logo nos primeiros dias.'},
+  {phase:3, title:'Levantar um plano de moradia de médio prazo', desc:'Depois das primeiras semanas, onde vão morar de verdade? Pesquisar bairros, valores e exigências de aluguel.'},
   {phase:3, title:'Comprar as passagens ✈️', desc:'O sonho ganhando data e hora.'},
   {phase:3, title:'Despedida da família e amigos ❤️', desc:'Um momento importante antes da grande mudança.'},
   {phase:3, title:'Fazer as malas e embarcar 🗽', desc:'O grande dia chegou. Boa viagem rumo ao sonho americano!'},
@@ -2483,6 +2497,7 @@ const DREAM_VEICULO_MISSIONS = [
   {phase:0, title:'Definir a data-alvo da compra', desc:'Escolher um prazo realista e marcar no app.'},
   {phase:0, title:'Pesquisar a faixa de preço (tabela FIPE)', desc:'Saber quanto custa o modelo desejado.'},
   {phase:0, title:'Montar o orçamento (veículo + documentação + seguro)', desc:'Não esquecer transferência, IPVA e seguro.'},
+  {phase:0, title:'Conferir isenções e desconto de IPVA', desc:'Cota única costuma dar desconto. Alguns estados isentam elétricos, motos de baixa cilindrada, PCD e veículos acima de certa idade — confira a regra do seu estado.'},
   {phase:0, title:'Definir quanto guardar por mês', desc:'Quebrar o valor em parcelas mensais.'},
   {phase:0, title:'Abrir uma aplicação só pro veículo', desc:'Separar esse dinheiro do resto.'},
   {phase:1, title:'Guardar a primeira parte 🏦', desc:'Começar a meta já!'},
@@ -2525,11 +2540,13 @@ const DREAM_CHOICES = [
 // Estimativa de custos por sonho (editável). USA em US$, os demais em R$.
 const DREAM_COSTS = {
   usa: [
-    {label:'Passaporte (2 pessoas)', value:500},
+    {label:'Passaporte BR (2 pessoas) — ~R$500', value:95},
+    {label:'Taxa do visto / MRV — $185 x2', value:370},
+    {label:'Visa Integrity Fee — $250 x2 (na aprovação)', value:500},
+    {label:'SEVIS I-901 (se visto de estudo F-1) — $200 x2', value:400},
     {label:'Cursos / provas de inglês', value:1500},
     {label:'Tradução juramentada + apostilamento', value:600},
     {label:'Advogado de imigração', value:5000},
-    {label:'Taxas de visto / aplicação', value:2000},
     {label:'Exames médicos e vacinas', value:800},
     {label:'Passagens aéreas (2)', value:2000},
     {label:'Moradia — 1º mês + depósito', value:4000},
@@ -2572,7 +2589,7 @@ function seedDream(type){
     targetUSD:old.targetUSD||0, savedUSD:old.savedUSD||0, usdDeposits:old.usdDeposits||[],
     usdRate:old.usdRate||0, targetDate:old.targetDate||null, chosen:old.chosen||false,
     missions:def.missions.map((m,i)=>({id:'m'+i,phase:m.phase,title:m.title,desc:m.desc,done:false,doneDate:null})),
-    habits:def.habits.map(h=>({id:uid(),title:h,doneMonths:[]})), seeded:true };
+    habits:def.habits.map(h=>({id:uid(),title:h,doneDates:[]})), seeded:true };
   saveState();
 }
 function switchDream(type){
@@ -2592,7 +2609,25 @@ function ensureDream(){
   if(!d.missions) d.missions=[];
   if(!d.habits) d.habits=[];
   if(!d.usdDeposits) d.usdDeposits=[];
+  // Migração: hábitos mensais → diários (com streak 🔥)
+  (d.habits||[]).forEach(h=>{
+    if(!h.doneDates){
+      h.doneDates=[];
+      if(h.doneMonths&&h.doneMonths.length){ h.doneMonths.forEach(mk=>{ const p=mk.split('-'); h.doneDates.push(p[0]+'-'+String(p[1]).padStart(2,'0')+'-01'); }); }
+    }
+  });
+  // Migração: adiciona missões novas do catálogo (uma vez por tipo), sem perder progresso
+  syncDreamMissions(d);
   if(!d.costItems) d.costItems=(DREAM_COSTS[d.type]||[]).map(c=>({id:uid(),label:c.label,value:c.value}));
+}
+// Acrescenta ao sonho existente as missões novas do catálogo que ainda não estão lá
+function syncDreamMissions(d){
+  const flag='msync_'+d.type+'_2026b';
+  if(d[flag]) return;
+  const cat=(DREAMS[d.type]||DREAMS.usa).missions||[];
+  const have=new Set((d.missions||[]).map(m=>m.phase+'|'+m.title));
+  cat.forEach(cm=>{ if(!have.has(cm.phase+'|'+cm.title)) d.missions.push({id:uid(),phase:cm.phase,title:cm.title,desc:cm.desc,done:false,doneDate:null}); });
+  d[flag]=true;
 }
 function fmtUSD(v){ return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v||0); }
 function dreamMonthsLeft(){
@@ -2601,12 +2636,50 @@ function dreamMonthsLeft(){
   const now=new Date();
   return (y-now.getFullYear())*12+(m-(now.getMonth()+1));
 }
+// Projeta se o sonho vai bater a meta no prazo, comparando o ritmo real (últimos 90 dias) com o necessário
+function dreamDrift(){
+  const d=state.dream; if(!d) return null;
+  const target=d.targetUSD||0, saved=d.savedUSD||0, ml=dreamMonthsLeft();
+  if(!target || target<=saved || !ml || ml<=0) return null;
+  const need=(target-saved)/ml; // por mês necessário
+  const cut=new Date(); cut.setDate(cut.getDate()-90);
+  const recent=(d.usdDeposits||[]).filter(x=>x.amount>0 && new Date(x.date+'T12:00:00')>=cut);
+  const sum=recent.reduce((s,x)=>s+x.amount,0);
+  const pace=sum/3; // média mensal real
+  if(pace<=0) return {need, pace:0, monthsToGoal:Infinity, drift:Infinity};
+  const monthsToGoal=Math.ceil((target-saved)/pace);
+  return {need, pace, monthsToGoal, drift:monthsToGoal-ml};
+}
+function renderDriftCard(){
+  const dr=dreamDrift(); if(!dr) return '';
+  if(dr.pace<=0){
+    return '<div class="card" style="border-color:var(--red);background:linear-gradient(160deg,var(--surface),#f871711a)">'
+      +'<div style="display:flex;gap:11px;align-items:flex-start"><div style="font-size:1.4rem">⏳</div><div>'
+      +'<div style="font-weight:700;font-size:.92rem;color:var(--red)">O sonho está parado</div>'
+      +'<div style="font-size:.8rem;color:var(--text2);margin-top:3px;line-height:1.45">Sem aportes nos últimos 3 meses. Pra chegar na data, precisam guardar <strong style="color:var(--text)">'+dreamMoney(dr.need)+'/mês</strong>. Que tal retomar com um valor pequeno hoje? 💪</div>'
+      +'</div></div></div>';
+  }
+  const onTrack=dr.drift<=0;
+  const col=onTrack?'var(--green)':'#fbbf24';
+  const driftAbs=Math.abs(dr.drift);
+  return '<div class="card" style="border-color:'+col+'55;background:linear-gradient(160deg,var(--surface),'+col+'0f)">'
+    +'<div style="display:flex;gap:11px;align-items:flex-start"><div style="font-size:1.4rem">'+(onTrack?'🚀':'🐢')+'</div><div style="flex:1">'
+    +'<div style="font-weight:700;font-size:.92rem;color:'+col+'">'+(onTrack
+        ? (driftAbs===0?'No ritmo certo!':'Adiantados em '+driftAbs+' '+(driftAbs===1?'mês':'meses')+'! 🎉')
+        : 'O sonho está se afastando')+'</div>'
+    +'<div style="font-size:.8rem;color:var(--text2);margin-top:3px;line-height:1.45">'
+    +'No ritmo atual (~<strong style="color:var(--text)">'+dreamMoney(dr.pace)+'/mês</strong>), '
+    +(onTrack
+        ? 'vocês chegam na meta '+(driftAbs===0?'exatamente no prazo.':'antes da data-alvo. Continuem assim! 💪')
+        : 'a meta só seria atingida <strong style="color:'+col+'">'+driftAbs+' '+(driftAbs===1?'mês':'meses')+' depois</strong> da data planejada. Subindo pra <strong style="color:var(--text)">'+dreamMoney(dr.need)+'/mês</strong> vocês voltam pro prazo.')
+    +'</div></div></div></div>';
+}
 function renderMissionItem(m){
   return '<div class="mission'+(m.done?' done':'')+'">'
     +'<button class="mission-check'+(m.done?' done':'')+'" onclick="toggleMission(\''+m.id+'\')">'+(m.done?'✓':'')+'</button>'
     +'<div class="mission-body" onclick="toggleMission(\''+m.id+'\')"><div class="mission-title">'+esc(m.title)+'</div>'
       +(m.desc?'<div class="mission-desc">'+esc(m.desc)+'</div>':'')
-      +(m.done&&m.doneDate?'<div class="mission-date">✅ '+new Date(m.doneDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'})+'</div>':'')
+      +(m.done&&m.doneDate?'<div class="mission-date">✅ '+new Date(m.doneDate+'T12:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'})+(m.by&&!isSolo()?' · por '+esc(whoLabel(m.by)):'')+'</div>':'')
     +'</div><button class="mission-del" onclick="deleteMission(\''+m.id+'\')">🗑</button></div>';
 }
 let dreamPicking=false;
@@ -2666,16 +2739,21 @@ function renderDream(){
     <button class="btn-ghost" style="width:100%;margin-top:4px;font-size:.78rem;color:var(--cyan)" onclick="updateUsdRateNow()">🔄 Buscar cotação de hoje (online)</button>`:''}
   </div>
 
+  ${renderDriftCard()}
+
   ${renderCostCard()}
 
   ${renderDollarHistory()}
 
   <div class="card">
-    <div class="card-title">🔥 Missões do mês — ${MONTHS_FULL[currentMonth]}<button class="btn-ghost" style="font-size:.74rem" onclick="addHabit()">+ Hábito</button></div>
+    <div class="card-title">🔥 Hábitos de hoje<button class="btn-ghost" style="font-size:.74rem" onclick="addHabit()">+ Hábito</button></div>
     ${habits.length?habits.map(h=>{
-      const hdone=(h.doneMonths||[]).includes(monthKey);
-      return '<div class="mission'+(hdone?' done':'')+'"><button class="mission-check'+(hdone?' done':'')+'" onclick="toggleHabit(\''+h.id+'\')">'+(hdone?'✓':'')+'</button><div class="mission-body" onclick="toggleHabit(\''+h.id+'\')"><div class="mission-title">'+esc(h.title)+'</div></div><button class="mission-del" onclick="deleteHabit(\''+h.id+'\')">🗑</button></div>';
+      const hdone=habitDoneToday(h);
+      const st=habitStreak(h);
+      const flame=st>0?'<span style="font-size:.7rem;font-weight:700;color:#fb923c;white-space:nowrap">🔥 '+st+'</span>':'';
+      return '<div class="mission'+(hdone?' done':'')+'"><button class="mission-check'+(hdone?' done':'')+'" onclick="toggleHabit(\''+h.id+'\')">'+(hdone?'✓':'')+'</button><div class="mission-body" onclick="toggleHabit(\''+h.id+'\')"><div class="mission-title">'+esc(h.title)+'</div></div><div style="display:flex;align-items:center;gap:8px">'+flame+'<button class="mission-del" onclick="deleteHabit(\''+h.id+'\')">🗑</button></div></div>';
     }).join(''):'<div style="font-size:.82rem;color:var(--text3);padding:6px 0">Sem hábitos ainda. Toque em <strong>+ Hábito</strong> (ex: comprar dólar, estudar inglês).</div>'}
+    <div style="font-size:.68rem;color:var(--text3);margin-top:8px;text-align:center">Marque todo dia que cumprir — o 🔥 conta os dias seguidos.</div>
   </div>
 
   ${groups.map(g=>{
@@ -2829,7 +2907,13 @@ async function fetchUsdRate(silent){
     if(!res.ok) throw new Error('HTTP '+res.status);
     const j=await res.json();
     const bid=parseFloat(j&&j.USDBRL&&j.USDBRL.bid);
+    const pct=parseFloat(j&&j.USDBRL&&j.USDBRL.pctChange);
     if(!bid||isNaN(bid)) throw new Error('sem cotação');
+    // Alerta de volatilidade — reforça a vantagem do aporte regular (DCA)
+    if(!silent && !isNaN(pct)){
+      if(pct>=2)       showToast('⚠️ Dólar subindo forte hoje (+'+pct.toFixed(2)+'%). Comprar aos poucos todo mês protege vocês desses picos.','info',5000);
+      else if(pct<=-2) showToast('📉 Dólar caindo hoje ('+pct.toFixed(2)+'%). Dia mais barato pra fazer o aporte do mês!','success',5000);
+    }
     return Math.round(bid*100)/100;
   }catch(e){
     if(!silent) showToast('Não consegui buscar a cotação (precisa de internet).','error',4000);
@@ -2847,18 +2931,44 @@ function toggleMission(id){
   const m=state.dream.missions.find(x=>x.id===id); if(!m) return;
   const ph=m.phase;
   m.done=!m.done; m.doneDate=m.done?new Date().toISOString().slice(0,10):null;
+  if(!m.done) m.by=null;
   saveState();
   if(m.done){
     showToast('✅ Missão concluída: '+m.title,'success');
     // Concluiu a fase inteira agora? Oferece o card de conquista.
-    const fase=state.dream.missions.filter(x=>x.phase===ph);
-    if(fase.length && fase.every(x=>x.done)){
-      const pdef=(dreamDef().phases||[]).find(p=>p.id===ph);
-      const nome=pdef?pdef.name:'Fase';
-      setTimeout(()=>openConfirm('🎉 Vocês concluíram "'+nome+'"! Quer gerar um card pra compartilhar essa conquista?', ()=>shareDreamCard(), {okLabel:'📸 Compartilhar'}), 400);
-    }
+    const afterAttrib=()=>{
+      const fase=state.dream.missions.filter(x=>x.phase===ph);
+      if(fase.length && fase.every(x=>x.done)){
+        const pdef=(dreamDef().phases||[]).find(p=>p.id===ph);
+        const nome=pdef?pdef.name:'Fase';
+        setTimeout(()=>openConfirm('🎉 Vocês concluíram "'+nome+'"! Quer gerar um card pra compartilhar essa conquista?', ()=>shareDreamCard(), {okLabel:'📸 Compartilhar'}), 400);
+      }
+    };
+    // Em modo casal, pergunta quem concluiu (atribuição); em solo, segue direto.
+    if(!isSolo()) askWho(by=>{ m.by=by; saveState(); renderCurrentTab(); afterAttrib(); });
+    else afterAttrib();
   }
   renderCurrentTab();
+}
+// Nome de quem concluiu (p1/p2/both) usando os nomes do casal
+function whoLabel(by){ if(!by) return ''; if(by==='both') return 'Juntos'; return by==='p1'?(state.p1name||'Eu'):(state.p2name||'Ela'); }
+// Mini-seletor "quem concluiu?" reaproveitando o modal de confirmação
+let _whoCb=null;
+function askWho(cb){
+  _whoCb=cb;
+  const p1=esc(state.p1name||'Eu'), p2=esc(state.p2name||'Ela');
+  document.getElementById('confirmMsg').innerHTML='<div style="font-weight:700;margin-bottom:9px">Quem concluiu? 🙌</div><div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button class="btn-secondary" style="flex:1;min-width:78px" onclick="_whoPick(\'p1\')">'+p1+'</button>'
+    +'<button class="btn-secondary" style="flex:1;min-width:78px" onclick="_whoPick(\'p2\')">'+p2+'</button>'
+    +'<button class="btn-secondary" style="flex:1;min-width:78px" onclick="_whoPick(\'both\')">Juntos 🙌</button></div>';
+  document.getElementById('confirmOk').style.display='none';
+  document.getElementById('confirmAlt').style.display='none';
+  document.getElementById('confirmModal2').classList.add('open');
+}
+function _whoPick(by){
+  document.getElementById('confirmOk').style.display='';
+  closeConfirm();
+  if(_whoCb){ const cb=_whoCb; _whoCb=null; cb(by); }
 }
 function deleteMission(id){
   ensureDream();
@@ -2878,22 +2988,34 @@ function addMission(){
     saveState(); showToast('⭐ Missão criada!','success'); renderCurrentTab();
   });
 }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+// Dias seguidos cumpridos (conta a partir de hoje; se não fez hoje ainda, conta a partir de ontem)
+function habitStreak(h){
+  const set=new Set(h.doneDates||[]);
+  if(!set.size) return 0;
+  let streak=0; const d=new Date();
+  if(!set.has(todayStr())) d.setDate(d.getDate()-1);
+  for(;;){ const k=d.toISOString().slice(0,10); if(set.has(k)){ streak++; d.setDate(d.getDate()-1); } else break; }
+  return streak;
+}
+function habitDoneToday(h){ return (h.doneDates||[]).includes(todayStr()); }
 function toggleHabit(id){
   ensureDream();
   const h=state.dream.habits.find(x=>x.id===id); if(!h) return;
-  if(!h.doneMonths) h.doneMonths=[];
-  const key=currentYear+'-'+(currentMonth+1);
-  const i=h.doneMonths.indexOf(key);
-  if(i>=0) h.doneMonths.splice(i,1); else h.doneMonths.push(key);
+  if(!h.doneDates) h.doneDates=[];
+  const t=todayStr();
+  const i=h.doneDates.indexOf(t);
+  if(i>=0) h.doneDates.splice(i,1);
+  else { h.doneDates.push(t); const st=habitStreak(h); if(st>=3) showToast('🔥 '+st+' dias seguidos: '+h.title,'success'); }
   saveState(); renderCurrentTab();
 }
 function addHabit(){
   ensureDream();
-  openInputModal('Novo hábito mensal',[
-    {key:'title',label:'Nome do hábito (ex: Comprar dólar)',placeholder:'Comprar dólar'}
+  openInputModal('Novo hábito diário',[
+    {key:'title',label:'Nome do hábito (ex: Estudar inglês)',placeholder:'Estudar inglês'}
   ], vals=>{
     if(!vals.title.trim()) return;
-    state.dream.habits.push({id:uid(),title:vals.title.trim(),doneMonths:[]});
+    state.dream.habits.push({id:uid(),title:vals.title.trim(),doneDates:[]});
     saveState(); renderCurrentTab();
   });
 }
