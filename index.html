@@ -800,7 +800,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v10'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v11'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -2108,6 +2108,8 @@ function reconcileBills(){
 function renderBudget() {
   reconcileBills();
   const budgets=state.budgets||{};
+  const totalLimits=Object.keys(budgets).reduce((s,c)=>s+((budgets[c]&&budgets[c].limit)||0),0);
+  const planIncome=(state.p1income||0)+(state.p2income||0);
   const expenses=getMonthTx().filter(t=>t.type==='expense'&&!t.transfer);
   const catTotals={};
   expenses.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount;});
@@ -2138,6 +2140,7 @@ function renderBudget() {
   ${renderSavingsCard()}
   <div class="card">
     <div class="card-title">🎯 Orçamento — ${MONTHS_FULL[currentMonth]}</div>
+    ${totalLimits>0?`<div style="font-size:.74rem;color:var(--text3);margin:-7px 0 11px">Soma dos limites: <b style="color:${planIncome&&totalLimits>planIncome?'var(--orange)':'var(--text2)'}">${fmt(totalLimits)}</b>${planIncome>0?' · salário '+fmt(planIncome):''}</div>`:''}
     ${rows||'<div class="empty-state" style="padding:18px"><p>Nenhum limite definido ainda.</p></div>'}
   </div>
   <div class="card">
@@ -2163,49 +2166,17 @@ function saveBudget() {
   const V0=parseFloat(document.getElementById('budgetLimit').value);
   if (!V0||V0<=0){const el=document.getElementById('budgetLimit');el.style.borderColor='var(--red)';el.classList.add('shake');setTimeout(()=>{el.classList.remove('shake');el.style.borderColor='';},400);return;}
   if (!state.budgets) state.budgets={};
-  const cat=editingBudgetCatId;
-  const oldLimit=(state.budgets[cat]&&state.budgets[cat].limit)||0;
-  const others=Object.keys(state.budgets).filter(c=>c!==cat && state.budgets[c] && state.budgets[c].limit>0);
-  const sumOthers=others.reduce((s,c)=>s+state.budgets[c].limit,0);
-  const T=oldLimit+sumOthers; // total do bolo (salário distribuído)
-
-  if (others.length>0) {
-    // mantém o total fixo: a diferença é ajustada nas outras sempre nas proporções do plano
-    let V=Math.round(V0);
-    let clamped=false;
-    if (V>T) { V=T; clamped=true; }
-    rescaleByPlan(others, T-V);
-    state.budgets[cat]={limit:V};
-    saveState(); closeBudgetModal();
-    if (clamped) showToast('Ajustado para '+fmt(V)+' — é o máximo do orçamento atual','info',4500);
-    else if (V>oldLimit) showToast('✅ +'+fmt(V-oldLimit)+' aqui — diferença tirada das outras (pelo plano)','success',4000);
-    else showToast('✅ '+fmt(oldLimit-V)+' liberado para as outras (pelo plano)','success',4000);
-  } else {
-    state.budgets[cat]={limit:Math.round(V0)};
-    saveState(); closeBudgetModal();
-    showToast('✅ Limite salvo!','success');
-  }
+  // Limite FIXO e independente: mexer numa categoria NÃO altera as outras.
+  state.budgets[editingBudgetCatId]={limit:Math.round(V0)};
+  saveState(); closeBudgetModal();
+  showToast('✅ Limite salvo!','success');
   renderCurrentTab(); updateBudgetBadge();
 }
 function removeBudget() {
-  const b = state.budgets && state.budgets[editingBudgetCatId];
-  const removed = b ? (b.limit||0) : 0;
-  const others = Object.keys(state.budgets||{}).filter(c=>c!==editingBudgetCatId && state.budgets[c] && state.budgets[c].limit>0);
-  if (removed>0 && others.length>0) {
-    openConfirm('Remover este limite e distribuir '+fmt(removed)+' entre as outras '+others.length+' categorias (pelo plano)?', ()=>{
-      const T = removed + others.reduce((s,c)=>s+state.budgets[c].limit,0);
-      delete state.budgets[editingBudgetCatId];
-      rescaleByPlan(others, T);
-      saveState(); closeBudgetModal();
-      showToast('✅ '+fmt(removed)+' redistribuído entre as outras categorias (pelo plano)','success',4000);
-      renderCurrentTab(); updateBudgetBadge();
-    }, {okLabel:'Remover'});
-  } else {
-    if (state.budgets) delete state.budgets[editingBudgetCatId];
-    saveState(); closeBudgetModal();
-    showToast('Limite removido','info');
-    renderCurrentTab(); updateBudgetBadge();
-  }
+  if (state.budgets) delete state.budgets[editingBudgetCatId];
+  saveState(); closeBudgetModal();
+  showToast('Limite removido','info');
+  renderCurrentTab(); updateBudgetBadge();
 }
 // Oculta uma categoria de vez (some do orçamento e do lançamento). Dá pra restaurar.
 function catHidden(id){ return (state.hiddenCats||[]).includes(id); }
