@@ -1317,11 +1317,13 @@ function walletBalance(p){
   const base=state.wallets[p]||0;
   const since=state.wallets[p+'d'];
   if(!since) return base; // sem data base = mostra o valor informado (ainda não rastreia)
+  const hoje=new Date().toISOString().slice(0,10);
   let mov=0;
   (state.transactions||[]).forEach(t=>{
     if(t.person!==p || t.transfer) return;
     if(t.payment==='credito') return;            // crédito vai pra fatura, não sai da conta agora
-    if((t.date||'') < since) return;             // só conta movimentos depois da base
+    const dt=t.date||'';
+    if(dt < since || dt > hoje) return;          // só conta do dia da base até HOJE (ignora futuro, ex: salário do dia 20)
     mov += (t.type==='income') ? (t.amount||0) : -(t.amount||0);
   });
   return base+mov;
