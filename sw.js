@@ -1,4 +1,4 @@
-const CACHE = 'nosdois-v7';
+const CACHE = 'nosdois-v8';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 // Firebase Messaging (só ativo se Firebase estiver configurado)
@@ -23,12 +23,28 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const req = e.request;
+  const isHTML = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+
+  if (isHTML) {
+    // HTML = network-first: sempre tenta a versão mais nova; cai no cache só se estiver offline.
+    e.respondWith(
+      fetch(req).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(req, clone));
+        return res;
+      }).catch(() => caches.match(req).then(c => c || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Outros arquivos = cache-first, atualizando em segundo plano.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const net = fetch(e.request).then(res => {
-        if (res && res.status === 200 && e.request.url.startsWith(self.location.origin)) {
+    caches.match(req).then(cached => {
+      const net = fetch(req).then(res => {
+        if (res && res.status === 200 && req.url.startsWith(self.location.origin)) {
           const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
+          caches.open(CACHE).then(c => c.put(req, clone));
         }
         return res;
       }).catch(() => cached);
@@ -36,6 +52,9 @@ self.addEventListener('fetch', e => {
     })
   );
 });
+
+// Permite ativar o SW novo imediatamente quando a página pedir
+self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 
 // Firebase push notifications background handler
 if (typeof firebase !== 'undefined' && firebase.messaging) {

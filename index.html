@@ -800,6 +800,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const APP_VERSION = 'v8'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -3430,7 +3431,8 @@ function renderSettings() {
       <button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="document.getElementById('importFile').click()">⬆ Import</button>
     </div>
     <div class="setting-row"><div><div class="setting-label" style="color:var(--red)">Apagar todos os dados</div><div class="setting-sub">Irreversível</div></div><button class="btn-danger" onclick="clearData()">Apagar</button></div>
-  </div>`;
+  </div>
+  <div style="text-align:center;font-size:.72rem;color:var(--text3);padding:4px 0 16px">Nós Dois · Finanças — versão ${APP_VERSION}</div>`;
 }
 function saveSetting(key,val) { state[key]=val; saveState(); updateAvatars(); renderCurrentTab(); }
 function savePin(val) {
@@ -3987,7 +3989,19 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
     if ('caches' in window) caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k))));
   } else {
-    window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+    window.addEventListener('load',()=>{
+      navigator.serviceWorker.register('sw.js').then(reg=>{
+        reg.update();
+        if(reg.waiting) reg.waiting.postMessage('skipWaiting');
+        reg.addEventListener('updatefound',()=>{
+          const nw=reg.installing;
+          if(nw) nw.addEventListener('statechange',()=>{ if(nw.state==='installed' && reg.waiting) reg.waiting.postMessage('skipWaiting'); });
+        });
+      }).catch(()=>{});
+      // Quando o SW novo assume o controle, recarrega 1x pra mostrar a versão nova
+      let _reloaded=false;
+      navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(_reloaded) return; _reloaded=true; location.reload(); });
+    });
   }
 }
 
