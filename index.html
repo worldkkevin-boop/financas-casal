@@ -800,7 +800,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v9'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v10'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1526,13 +1526,14 @@ function renderDashboard() {
 
   const catTotals={};
   exp.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount;});
-  const sortedCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const sortedCats=Object.entries(catTotals).filter(([id])=>!catHidden(id)).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxCat=sortedCats[0]?.[1]||1;
   const recent=[...txs].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
 
   const totalRec=state.goals.reduce((s,g)=>{const r=goalRec(g);return s+(r?r.monthly:0);},0);
   const budgets=state.budgets||{};
   const overBudget=Object.entries(budgets).filter(([catId,b])=>{
+    if (catHidden(catId)) return false;
     if (!b||!b.limit) return false;
     const spent=exp.filter(t=>t.category===catId).reduce((s,t)=>s+t.amount,0);
     return spent>b.limit;
@@ -2112,7 +2113,7 @@ function renderBudget() {
   expenses.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount;});
 
   const budgetedCats=Object.keys(budgets).filter(c=>budgets[c]&&budgets[c].limit);
-  const allSpentCats=[...new Set([...budgetedCats,...Object.keys(catTotals)])];
+  const allSpentCats=[...new Set([...budgetedCats,...Object.keys(catTotals)])].filter(c=>!catHidden(c));
 
   const rows=allSpentCats.map(catId=>{
     const cat=getCat(catId,'expense');
