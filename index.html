@@ -387,6 +387,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .section-label{font-family:var(--font-d);font-size:.7rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--text3)}
 .online-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px #34d48a88;flex-shrink:0;animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.spinner{width:30px;height:30px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 .fade-up{animation:fadeUp .26s ease both}
@@ -405,7 +407,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <div class="splash-glow"></div>
   <div class="splash-logo"><svg class="brand-mark" viewBox="0 0 46 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="ndA1" x1="7" y1="5" x2="25" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#6c8eff"/><stop offset="1" stop-color="#7af3d8"/></linearGradient><linearGradient id="ndB1" x1="21" y1="5" x2="39" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#ff79c6"/></linearGradient></defs><circle cx="16" cy="14" r="9" stroke="url(#ndA1)" stroke-width="4.2"/><circle cx="30" cy="14" r="9" stroke="url(#ndB1)" stroke-width="4.2"/></svg><span class="wm">Nós <span class="grad">Dois</span></span></div>
   <p class="splash-sub">finanças do casal</p>
-  <div id="pinScreen" style="display:flex;flex-direction:column;align-items:center;gap:13px">
+  <div id="splashLoading" style="display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:12px">
+    <div class="spinner"></div>
+    <p style="color:var(--text3);font-size:.78rem">Carregando…</p>
+  </div>
+  <div id="pinScreen" style="display:none;flex-direction:column;align-items:center;gap:13px">
     <div class="pin-dots">
       <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
       <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
@@ -816,7 +822,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v14'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v15'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1123,6 +1129,8 @@ function showOnboard(u){ _hideOverlays(); _hideSplash(); document.getElementById
 function obShowJoin(){ const j=document.getElementById('obJoin'); if(j){ j.style.display='flex'; const i=document.getElementById('obCode'); if(i) setTimeout(()=>{ try{i.focus();}catch(e){} },100); } }
 function obHint(t){ const h=document.getElementById('obHint'); if(h) h.textContent=t||''; }
 function revealApp(){ _hideOverlays(); _hideSplash(); document.getElementById('app').classList.add('visible'); initApp(); if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }
+// Tela "Carregando…" enquanto o Google confirma o login (evita flash de login/PIN no reload)
+function showLoading(){ _hideOverlays(); const sp=document.getElementById('splash'); if(sp){ sp.classList.remove('hide'); sp.style.display='flex'; } const l=document.getElementById('splashLoading'); if(l) l.style.display='flex'; const p=document.getElementById('pinScreen'); if(p) p.style.display='none'; const m=document.getElementById('modeScreen'); if(m) m.style.display='none'; document.getElementById('app').classList.remove('visible'); }
 
 async function authRouter(u){
   currentUid = u ? u.uid : null;
@@ -1139,6 +1147,7 @@ async function enterApp(){
   if(USE_FIREBASE && state.coupleId) subscribeFirebase();
   if(state.pinEnabled && state.pin && localStorage.getItem('nosDoisUnlocked')!=='1'){
     _hideOverlays(); const sp=document.getElementById('splash'); if(sp){ sp.classList.remove('hide'); sp.style.display='flex'; }
+    const sl=document.getElementById('splashLoading'); if(sl) sl.style.display='none';
     const ms=document.getElementById('modeScreen'); if(ms) ms.style.display='none';
     document.getElementById('pinScreen').style.display='flex';
   } else { revealApp(); }
@@ -4230,8 +4239,11 @@ if (!USE_FIREBASE && localStorage.getItem('nosDoisUnlocked')==='1') {
 // INIT ON LOAD
 window.addEventListener('load', () => {
   applyTheme(state.theme||'dark');
-  if (!USE_FIREBASE) { if (localStorage.getItem('nosDoisUnlocked')!=='1') maybeShowModeScreen(); return; }
-  showLoginScreen(); // mostra login por padrão; o onAuthStateChanged (authRouter) decide o resto
+  if (!USE_FIREBASE) {
+    if (localStorage.getItem('nosDoisUnlocked')!=='1') { const sp=document.getElementById('splash'); if(sp){sp.style.display='flex';} if(!maybeShowModeScreen()) document.getElementById('pinScreen').style.display='flex'; }
+    return;
+  }
+  showLoading(); // mostra "Carregando…" enquanto o Google resolve; authRouter (onAuthStateChanged) decide o resto
 });
 
 // SWIPE LATERAL → troca de aba (cara de app nativo)
