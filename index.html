@@ -46,7 +46,7 @@ html{font-size:16px}
 body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height:100dvh;overflow-x:hidden;overscroll-behavior-y:contain;transition:background .3s,color .3s;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
 /* PULL TO REFRESH */
-#ptr{position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:90;display:flex;align-items:center;justify-content:center;gap:8px;height:0;overflow:hidden;color:var(--text2);font-size:.84rem;font-weight:600;background:var(--bg);transition:height .2s,color .2s;pointer-events:none}
+#ptr{position:fixed;top:env(safe-area-inset-top);left:0;right:0;z-index:130;display:flex;align-items:center;justify-content:center;gap:8px;height:0;overflow:hidden;color:var(--text2);font-size:.84rem;font-weight:600;background:var(--bg);transition:height .2s,color .2s;pointer-events:none}
 #ptr #ptrIcon{font-size:1.2rem;display:inline-block;transition:transform .2s,color .2s}
 #ptr.ready{color:var(--accent)}
 #ptr.ready #ptrIcon{transform:rotate(180deg)}
@@ -822,7 +822,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v15'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v16'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -4277,7 +4277,7 @@ window.addEventListener('load', () => {
   const ind=document.getElementById('ptr'), txt=document.getElementById('ptrText');
   if(!ind) return;
   let startY=0, dist=0, active=false;
-  const TRIGGER=85;
+  const TRIGGER=135; // precisa de um puxão firme (menos sensível)
   function scrollTop(){ return window.scrollY||document.documentElement.scrollTop||0; }
   function blocked(){
     if(document.querySelector('.modal-overlay.open')) return true;
@@ -4292,12 +4292,12 @@ window.addEventListener('load', () => {
   document.addEventListener('touchmove', e=>{
     if(!active) return;
     dist=e.touches[0].clientY-startY;
-    if(dist>0 && scrollTop()<=0){
+    if(dist>16 && scrollTop()<=0){            // zona morta: ignora micro-toques
       e.preventDefault();
-      ind.style.height=Math.min(dist*0.5,72)+'px';
+      ind.style.height=Math.min((dist-16)*0.5,80)+'px';
       const ready=dist>TRIGGER;
       ind.classList.toggle('ready', ready);
-      txt.textContent = ready ? 'Solte para atualizar' : 'Puxe para atualizar';
+      txt.textContent = ready ? '↑ Solte para atualizar' : '↓ Puxe para atualizar';
     } else { ind.style.height='0px'; }
   }, {passive:false});
   document.addEventListener('touchend', ()=>{
