@@ -778,6 +778,7 @@ let db = null;
 let unsubscribers = [];
 let messaging = null;
 let currentUid = null;
+let coupleLoaded = false; // só escreve no Firebase DEPOIS de carregar o casal (evita sobrescrever com vazio)
 function ensureAuth(){
   return new Promise(resolve=>{
     if(currentUid) return resolve(currentUid);
@@ -823,7 +824,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v17'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v18'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -943,6 +944,7 @@ function saveState() {
 function getCoupleRef() { return db.collection('couples').doc(state.coupleId); }
 async function pushToFirebase() {
   if (!USE_FIREBASE||!db||!state.coupleId) return;
+  if (!coupleLoaded) return; // TRAVA: não escreve antes de carregar o casal (evita apagar dados com estado vazio)
   const uid = currentUid || await ensureAuth();
   if (!uid) return; // sem auth não escreve (regras exigem login)
   try {
@@ -968,6 +970,7 @@ function subscribeFirebase() {
   const unsub = getCoupleRef().onSnapshot(doc => {
     if (!doc.exists) return;
     const data = doc.data();
+    coupleLoaded = true; // recebeu os dados reais → libera escrita
     const prevLen = state.transactions.length;
     if (data.settings) Object.assign(state, data.settings);
     if (data.budgets) state.budgets = data.budgets;
@@ -1141,7 +1144,17 @@ async function authRouter(u){
   const inv=new URLSearchParams(location.search).get('invite');
   if(!cid && inv){ return obJoin(inv); }     // veio por link de convite → entra direto
   if(!cid){ return showOnboard(u); }         // primeiro acesso → criar ou vincular
-  state.coupleId=cid; saveState();
+  state.coupleId=cid;
+  // Carrega os dados REAIS do casal ANTES de entrar — NUNCA empurrar estado local por cima
+  try{
+    const cs=await getCoupleRef().get();
+    if(cs.exists){ const data=cs.data()||{};
+      if(data.settings) Object.assign(state, data.settings);
+      ['budgets','cards','dream','investments','bills','cardReserve','portfolio','wallets','hiddenCats','transactions','goals'].forEach(k=>{ if(data[k]!==undefined) state[k]=data[k]; });
+    }
+    coupleLoaded=true;
+  }catch(e){ console.error('load couple', e); }
+  localStorage.setItem('nosDoiFinancas', JSON.stringify(state)); // salva local SEM empurrar
   await enterApp();
 }
 async function enterApp(){
@@ -1156,6 +1169,7 @@ async function enterApp(){
 async function obCreate(){
   if(!currentUid){ obHint('Faça login primeiro'); return; }
   state.coupleId=generateCode(); localStorage.setItem('nosDoisUser','p1');
+  coupleLoaded=true; // casal NOVO criado por você → pode escrever
   try{ await pushToFirebase(); await db.collection('users').doc(currentUid).set({coupleId:state.coupleId}); }
   catch(e){ obHint('Erro ao criar: '+(e.message||e)); return; }
   saveState(); await enterApp();
@@ -1178,6 +1192,7 @@ async function obJoin(rawCode){
     if(data.settings) Object.assign(state, data.settings);
     ['budgets','cards','dream','investments','bills','cardReserve','portfolio','wallets','hiddenCats','transactions','goals'].forEach(k=>{ if(data[k]!==undefined) state[k]=data[k]; });
     state.coupleId=code; localStorage.setItem('nosDoisUser','p2');
+    coupleLoaded=true; // carregou os dados reais do casal → pode escrever
     localStorage.setItem('nosDoiFinancas', JSON.stringify(state)); // salva local SEM empurrar pro Firebase
     await enterApp();
   }catch(e){ const u=firebase.auth().currentUser; showOnboard(u); obShowJoin(); obHint('Erro: '+(e.message||e)); }
