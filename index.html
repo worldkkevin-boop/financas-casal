@@ -441,6 +441,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   </div>
 </div>
 
+<div id="loginScreen" style="display:none;position:fixed;inset:0;z-index:9990;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:28px;text-align:center">
+  <div class="splash-logo" style="font-size:1.8rem"><svg class="brand-mark" viewBox="0 0 46 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="16" cy="14" r="9" stroke="#6c8eff" stroke-width="4.2"/><circle cx="30" cy="14" r="9" stroke="#a78bfa" stroke-width="4.2"/></svg><span class="wm">Nós <span class="grad">Dois</span></span></div>
+  <p style="color:var(--text2);font-size:.9rem;max-width:300px;line-height:1.5">Entrem com o Google pra acessar de qualquer aparelho — seguro e sem código. 💜</p>
+  <button onclick="googleLogin()" style="display:flex;align-items:center;gap:11px;background:#fff;color:#1a1a1a;border:none;border-radius:13px;padding:14px 24px;font-family:var(--font-d);font-weight:700;font-size:.96rem;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.3)"><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.2 13.6 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.2-9.9 6.2-17.4z"/><path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.6l-7.3-5.7c-2 1.4-4.7 2.3-8 2.3-6.4 0-11.8-4.1-13.6-9.8l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg> Entrar com Google</button>
+  <p id="loginHint" style="color:var(--text3);font-size:.74rem;min-height:16px"></p>
+</div>
+
+<div id="onboardScreen" style="display:none;position:fixed;inset:0;z-index:9990;background:var(--bg);flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:28px;text-align:center">
+  <div class="splash-logo" style="font-size:1.4rem"><span class="wm">Nós <span class="grad">Dois</span></span></div>
+  <p style="color:var(--text2);font-size:.92rem">Oi, <span id="obName"></span>! 👋 Como começamos?</p>
+  <button class="mode-pick" onclick="obCreate()"><span class="mp-ic">✨</span><span class="mp-lb">Criar nosso espaço</span><span class="mp-sb">Começar do zero</span></button>
+  <button class="mode-pick" onclick="obShowJoin()"><span class="mp-ic">🔗</span><span class="mp-lb">Tenho um convite / casal</span><span class="mp-sb">Entrar no espaço do parceiro(a)</span></button>
+  <div id="obJoin" style="display:none;flex-direction:column;gap:9px;width:100%;max-width:320px">
+    <input id="obCode" placeholder="CÓDIGO" maxlength="6" style="text-transform:uppercase;text-align:center;letter-spacing:.12em;font-size:1.15rem;font-family:var(--font-d);background:var(--surface2);color:var(--text);border:1.5px solid var(--border2);border-radius:10px;padding:11px"/>
+    <button class="btn-primary" style="width:100%" onclick="obJoin()">Vincular</button>
+  </div>
+  <p id="obHint" style="color:var(--red);font-size:.76rem;min-height:16px"></p>
+  <button class="btn-ghost" onclick="signOutGoogle()" style="font-size:.8rem;color:var(--text3)">Sair</button>
+</div>
+
 <div id="pairScreen">
   <div style="font-family:var(--font-d);font-size:1.1rem;font-weight:700">🔗 Conectar casal</div>
   <p style="font-size:.82rem;color:var(--text2)">Compartilhe seu código ou cole o do parceiro/a</p>
@@ -762,13 +782,9 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
   firebase.initializeApp(FIREBASE_CONFIG);
   db = firebase.firestore();
   db.enablePersistence().catch(() => {});
-  // Autenticação anônima: cada dispositivo ganha um uid; as regras do Firestore
-  // só liberam o casal para os 2 primeiros uids (os membros).
-  firebase.auth().signInAnonymously().catch(e=>console.warn('Auth anônima falhou', e));
-  firebase.auth().onAuthStateChanged(u=>{
-    currentUid = u ? u.uid : null;
-    if (currentUid && state.coupleId) subscribeFirebase();
-  });
+  // Login com Google: o onAuthStateChanged decide mostrar login / onboarding / app.
+  firebase.auth().getRedirectResult().catch(()=>{}); // retorno do login por redirect (PWA)
+  firebase.auth().onAuthStateChanged(u=>{ try { authRouter(u); } catch(e){ console.error('authRouter', e); } });
   try {
     messaging = firebase.messaging();
     if (FIREBASE_CONFIG.vapidKey) {
@@ -800,7 +816,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v12'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v13'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -852,7 +868,7 @@ function defaultState() {
     transactions:[],goals:[],budgets:{},cards:[],dream:null,savingsTarget:0,
     investments:{balance:0,entries:[],sweptMonths:[]},bills:{},
     cardReserve:{balance:0,entries:[],paid:[]},payday:20,paydayCycle:false,theme:'dark',coupleId:null,mode:null,
-    portfolio:{assets:[]},brapiToken:'',wallets:{p1:0,p2:0},hiddenCats:[]};
+    portfolio:{assets:[]},brapiToken:'',wallets:{p1:0,p2:0},hiddenCats:[],pinEnabled:false};
 }
 function isSolo(){ return state.mode==='solo'; }
 // Usuários antigos (já têm dados) entram como casal sem precisar escolher
@@ -924,7 +940,7 @@ async function pushToFirebase() {
   if (!uid) return; // sem auth não escreve (regras exigem login)
   try {
     await getCoupleRef().set({
-      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,paydayCycle:state.paydayCycle||false,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||''},
+      settings:{pin:state.pin,p1name:state.p1name,p2name:state.p2name,p1income:state.p1income,p2income:state.p2income,savingsTarget:state.savingsTarget||0,payday:state.payday||20,paydayCycle:state.paydayCycle||false,theme:state.theme,mode:state.mode||null,brapiToken:state.brapiToken||'',pinEnabled:state.pinEnabled||false},
       budgets:state.budgets||{}, cards:state.cards||[], dream:state.dream||null,
       investments:state.investments||{balance:0,entries:[],sweptMonths:[]}, bills:state.bills||{},
       cardReserve:state.cardReserve||{balance:0,entries:[],paid:[]}, portfolio:state.portfolio||{assets:[]}, wallets:state.wallets||{p1:0,p2:0}, hiddenCats:state.hiddenCats||[],
@@ -1012,15 +1028,14 @@ function pinPress(d) {
 function pinBackspace() { pinBuffer=pinBuffer.slice(0,-1); updatePinDots(); }
 function pinClear() { pinBuffer=''; updatePinDots(); }
 function lockApp() { localStorage.removeItem('nosDoisUnlocked'); location.reload(); }
+function togglePinEnabled() { state.pinEnabled=!state.pinEnabled; saveState(); showToast(state.pinEnabled?'🔒 PIN ativado':'PIN desativado','success'); renderCurrentTab(); }
 function updatePinDots() {
   for (let i=0;i<4;i++) document.getElementById('d'+i).classList.toggle('filled',i<pinBuffer.length);
 }
 function tryLogin() {
   if (pinBuffer===state.pin) {
     localStorage.setItem('nosDoisUnlocked','1');
-    document.getElementById('splash').classList.add('hide');
-    setTimeout(()=>{ document.getElementById('splash').style.display='none'; document.getElementById('app').classList.add('visible'); initApp(); },480);
-    if ('Notification' in window && Notification.permission==='default') Notification.requestPermission();
+    revealApp();
   } else {
     const hint = document.getElementById('pinHint');
     hint.textContent='❌ PIN incorreto'; hint.style.color='var(--red)';
@@ -1088,6 +1103,79 @@ function hidePairScreen() {
   document.getElementById('pinScreen').style.display='flex';
 }
 function generateCode() { return Math.random().toString(36).toUpperCase().slice(2,8); }
+
+// ===================== LOGIN COM GOOGLE =====================
+function googleLogin(){
+  const hint=document.getElementById('loginHint'); if(hint) hint.textContent='Abrindo o Google…';
+  const prov=new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(prov).catch(err=>{
+    const c=err&&err.code;
+    if(c==='auth/popup-blocked'||c==='auth/cancelled-popup-request'||c==='auth/operation-not-supported-in-this-environment'||c==='auth/popup-closed-by-user'){
+      firebase.auth().signInWithRedirect(prov).catch(e2=>{ if(hint) hint.textContent='Erro: '+(e2.message||e2); });
+    } else if(hint){ hint.textContent='Erro: '+(err.message||err); }
+  });
+}
+function signOutGoogle(){ try{ firebase.auth().signOut(); }catch(e){} localStorage.removeItem('nosDoisUnlocked'); setTimeout(()=>{ location.href=location.origin+location.pathname; },200); }
+function _hideOverlays(){ ['loginScreen','onboardScreen'].forEach(id=>{ const e=document.getElementById(id); if(e) e.style.display='none'; }); }
+function _hideSplash(){ const sp=document.getElementById('splash'); if(sp){ sp.classList.add('hide'); sp.style.display='none'; } }
+function showLoginScreen(){ _hideOverlays(); _hideSplash(); document.getElementById('app').classList.remove('visible'); const e=document.getElementById('loginScreen'); if(e) e.style.display='flex'; }
+function showOnboard(u){ _hideOverlays(); _hideSplash(); document.getElementById('app').classList.remove('visible'); const nm=document.getElementById('obName'); if(nm) nm.textContent=((u&&u.displayName)||'').split(' ')[0]||''; const j=document.getElementById('obJoin'); if(j) j.style.display='none'; const ob=document.getElementById('onboardScreen'); if(ob) ob.style.display='flex'; }
+function obShowJoin(){ const j=document.getElementById('obJoin'); if(j){ j.style.display='flex'; const i=document.getElementById('obCode'); if(i) setTimeout(()=>{ try{i.focus();}catch(e){} },100); } }
+function obHint(t){ const h=document.getElementById('obHint'); if(h) h.textContent=t||''; }
+function revealApp(){ _hideOverlays(); _hideSplash(); document.getElementById('app').classList.add('visible'); initApp(); if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }
+
+async function authRouter(u){
+  currentUid = u ? u.uid : null;
+  if(!u){ showLoginScreen(); return; }
+  let cid=null;
+  try{ const us=await db.collection('users').doc(u.uid).get(); if(us.exists) cid=us.data().coupleId; }catch(e){ console.error('users get',e); }
+  const inv=new URLSearchParams(location.search).get('invite');
+  if(!cid && inv){ return obJoin(inv); }     // veio por link de convite → entra direto
+  if(!cid){ return showOnboard(u); }         // primeiro acesso → criar ou vincular
+  state.coupleId=cid; saveState();
+  await enterApp();
+}
+async function enterApp(){
+  if(USE_FIREBASE && state.coupleId) subscribeFirebase();
+  if(state.pinEnabled && state.pin && localStorage.getItem('nosDoisUnlocked')!=='1'){
+    _hideOverlays(); const sp=document.getElementById('splash'); if(sp){ sp.classList.remove('hide'); sp.style.display='flex'; }
+    const ms=document.getElementById('modeScreen'); if(ms) ms.style.display='none';
+    document.getElementById('pinScreen').style.display='flex';
+  } else { revealApp(); }
+}
+async function obCreate(){
+  if(!currentUid){ obHint('Faça login primeiro'); return; }
+  state.coupleId=generateCode(); localStorage.setItem('nosDoisUser','p1');
+  try{ await pushToFirebase(); await db.collection('users').doc(currentUid).set({coupleId:state.coupleId}); }
+  catch(e){ obHint('Erro ao criar: '+(e.message||e)); return; }
+  saveState(); await enterApp();
+}
+async function obJoin(rawCode){
+  if(!currentUid){ obHint('Faça login primeiro'); return; }
+  const codeEl=document.getElementById('obCode');
+  const code=(rawCode||(codeEl?codeEl.value:'')||'').trim().toUpperCase();
+  if(code.length<4){ obHint('Código inválido'); return; }
+  try{
+    const ref=db.collection('couples').doc(code);
+    const snap=await ref.get();
+    if(!snap.exists){ const u=firebase.auth().currentUser; showOnboard(u); obShowJoin(); obHint('Casal não encontrado 🤔'); return; }
+    const members=(snap.data().members)||[];
+    if(!members.includes(currentUid) && members.length>=2){ const u=firebase.auth().currentUser; showOnboard(u); obShowJoin(); obHint('Esse casal já tem 2 pessoas (cheio).'); return; }
+    await ref.set({members:firebase.firestore.FieldValue.arrayUnion(currentUid)},{merge:true});
+    await db.collection('users').doc(currentUid).set({coupleId:code});
+    localStorage.setItem('nosDoisUser','p2'); state.coupleId=code; saveState();
+    await enterApp();
+  }catch(e){ const u=firebase.auth().currentUser; showOnboard(u); obShowJoin(); obHint('Erro: '+(e.message||e)); }
+}
+// Convite: gera link com o código embutido (parceiro clica, loga e vincula sozinho)
+function shareInvite(){
+  if(!state.coupleId){ showToast('Crie/abra um casal primeiro','error'); return; }
+  const link=location.origin+location.pathname+'?invite='+state.coupleId;
+  const msg='Vem cuidar das nossas finanças comigo no Nós Dois 💜\n'+link;
+  if(navigator.share){ navigator.share({title:'Nós Dois — convite', text:msg}).catch(()=>{}); }
+  else { navigator.clipboard.writeText(link).then(()=>showToast('🔗 Link de convite copiado!','success')).catch(()=>showToast(link,'info',6000)); }
+}
+function googleEmail(){ try{ const u=firebase.auth().currentUser; return u?(u.email||u.displayName||''):''; }catch(e){ return ''; } }
 function copyCode() { navigator.clipboard.writeText(state.coupleId||'').then(()=>showToast('📋 Código copiado!','success')); }
 async function joinWithCode() {
   const code = document.getElementById('pairCodeInput').value.trim().toUpperCase();
@@ -3506,15 +3594,17 @@ function renderSettings() {
   ${renderCardsSection()}
   <div class="card">
     <div class="card-title">Segurança</div>
+    <div class="setting-row"><div><div class="setting-label">Pedir PIN ao abrir</div><div class="setting-sub">Cadeado rápido além do login Google</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="togglePinEnabled()">${state.pinEnabled?'✓ Ativo':'Ativar'}</button></div>
     <div class="setting-row"><div><div class="setting-label">PIN de acesso</div><div class="setting-sub">Exatamente 4 dígitos numéricos</div></div><input class="setting-input" type="password" inputmode="numeric" pattern="[0-9]*" value="${esc(state.pin)}" onchange="savePin(this.value)" maxlength="4"/></div>
-    <div class="setting-row"><div><div class="setting-label">Manter conectado</div><div class="setting-sub">Não pede o PIN ao recarregar. Toque pra bloquear agora.</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="lockApp()">🔒 Bloquear</button></div>
+    ${state.pinEnabled?'<div class="setting-row"><div><div class="setting-label">Bloquear agora</div><div class="setting-sub">Vai pedir o PIN na próxima abertura</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="lockApp()">🔒 Bloquear</button></div>':''}
   </div>
   <div class="card">
-    <div class="card-title">Sincronização ${fbStatus}</div>
-    <div class="setting-row"><div><div class="setting-label">Código do casal</div><div class="setting-sub">Compartilhe com seu parceiro/a</div></div>${coupleCode}</div>
-    <div class="setting-row"><div><div class="setting-label">Conectar parceiro/a</div><div class="setting-sub">Ambos usarão os mesmos dados</div></div>
-      <button class="btn-ghost" style="color:var(--accent)" onclick="showPairScreen()">🔗 Parear</button>
+    <div class="card-title">Conta & Sincronização ${fbStatus}</div>
+    <div class="setting-row"><div><div class="setting-label">Conta Google</div><div class="setting-sub">${esc(googleEmail()||'—')}</div></div><button class="btn-ghost" style="color:var(--text3)" onclick="signOutGoogle()">Sair</button></div>
+    <div class="setting-row"><div><div class="setting-label">Convidar parceiro(a) 💌</div><div class="setting-sub">Manda o link; ele(a) entra com o Google e vincula</div></div>
+      <button class="btn-ghost" style="color:var(--accent)" onclick="shareInvite()">Convidar</button>
     </div>
+    <div class="setting-row"><div><div class="setting-label">Código do casal</div><div class="setting-sub">Pra vincular/recuperar — use só se precisar</div></div>${coupleCode}</div>
     ${!USE_FIREBASE?'<div style="font-size:.76rem;color:var(--text3);margin-top:8px;background:var(--surface2);border-radius:var(--radius-xs);padding:10px">Para sincronizar em tempo real, configure o Firebase. Veja o arquivo FIREBASE_SETUP.md incluído no projeto.</div>':''}
   </div>
   <div class="card">
@@ -4122,8 +4212,8 @@ if ('serviceWorker' in navigator) {
     console.error('Unhandled Rejection', ev);
   });
 
-// AUTO-LOGIN: se já desbloqueou neste aparelho, pula a tela do PIN
-if (localStorage.getItem('nosDoisUnlocked')==='1') {
+// AUTO-LOGIN só no modo offline (sem Firebase). Com Firebase, quem roteia é o Google (authRouter).
+if (!USE_FIREBASE && localStorage.getItem('nosDoisUnlocked')==='1') {
   try {
     const sp=document.getElementById('splash');
     if (sp){ sp.classList.add('hide'); sp.style.display='none'; }
@@ -4135,8 +4225,8 @@ if (localStorage.getItem('nosDoisUnlocked')==='1') {
 // INIT ON LOAD
 window.addEventListener('load', () => {
   applyTheme(state.theme||'dark');
-  if (localStorage.getItem('nosDoisUnlocked')!=='1') maybeShowModeScreen();
-  if (USE_FIREBASE && state.coupleId) subscribeFirebase();
+  if (!USE_FIREBASE) { if (localStorage.getItem('nosDoisUnlocked')!=='1') maybeShowModeScreen(); return; }
+  showLoginScreen(); // mostra login por padrão; o onAuthStateChanged (authRouter) decide o resto
 });
 
 // PULL TO REFRESH (puxar para atualizar)

@@ -1,15 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cada casal é um documento. Só os 2 primeiros dispositivos logados (membros) acessam.
+
+    // Mapa usuário → casal. Cada um lê/escreve só o próprio (login Google).
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Cada casal é um documento. No máximo 2 membros (vocês dois).
     match /couples/{coupleId} {
 
-      // Criar o casal: precisa estar logado (auth anônima já basta).
+      // Criar o casal: precisa estar logado.
       allow create: if request.auth != null;
 
       // Ler/editar/excluir: precisa estar logado E
       //  - ser um membro já registrado, OU
-      //  - ainda haver vaga (menos de 2 membros) — é assim que o 2º celular entra, OU
+      //  - ainda haver vaga (menos de 2 membros) — é assim que o parceiro(a) entra pelo convite, OU
       //  - documento antigo sem o campo 'members' (compatibilidade).
       allow read, update, delete: if request.auth != null && (
         !('members' in resource.data) ||
