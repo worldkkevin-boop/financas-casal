@@ -1163,7 +1163,12 @@ async function obJoin(rawCode){
     if(!members.includes(currentUid) && members.length>=2){ const u=firebase.auth().currentUser; showOnboard(u); obShowJoin(); obHint('Esse casal já tem 2 pessoas (cheio).'); return; }
     await ref.set({members:firebase.firestore.FieldValue.arrayUnion(currentUid)},{merge:true});
     await db.collection('users').doc(currentUid).set({coupleId:code});
-    localStorage.setItem('nosDoisUser','p2'); state.coupleId=code; saveState();
+    // Carrega os dados REAIS do casal ANTES de entrar (nunca empurrar local por cima)
+    const data=snap.data()||{};
+    if(data.settings) Object.assign(state, data.settings);
+    ['budgets','cards','dream','investments','bills','cardReserve','portfolio','wallets','hiddenCats','transactions','goals'].forEach(k=>{ if(data[k]!==undefined) state[k]=data[k]; });
+    state.coupleId=code; localStorage.setItem('nosDoisUser','p2');
+    localStorage.setItem('nosDoiFinancas', JSON.stringify(state)); // salva local SEM empurrar pro Firebase
     await enterApp();
   }catch(e){ const u=firebase.auth().currentUser; showOnboard(u); obShowJoin(); obHint('Erro: '+(e.message||e)); }
 }
