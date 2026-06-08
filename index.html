@@ -816,7 +816,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v13'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v14'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -4233,6 +4233,32 @@ window.addEventListener('load', () => {
   if (!USE_FIREBASE) { if (localStorage.getItem('nosDoisUnlocked')!=='1') maybeShowModeScreen(); return; }
   showLoginScreen(); // mostra login por padrão; o onAuthStateChanged (authRouter) decide o resto
 });
+
+// SWIPE LATERAL → troca de aba (cara de app nativo)
+(function(){
+  const TABS=['dashboard','transactions','budget','goals','portfolio','dream','annual','settings'];
+  let x0=0,y0=0,tracking=false;
+  function blocked(t){
+    if(document.querySelector('.modal-overlay.open')) return true;            // modal aberto
+    const app=document.getElementById('app');
+    if(app && !app.classList.contains('visible')) return true;                // tela de login/PIN
+    if(t && t.closest && t.closest('.nav-tabs,input,textarea,select,canvas,.chart-wrap,.pin-pad,.dream-intro-grid')) return true; // rolagem H / inputs / gráfico
+    return false;
+  }
+  document.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1 || blocked(e.target)){ tracking=false; return; }
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; tracking=true;
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(!tracking) return; tracking=false;
+    const t=e.changedTouches[0]; const dx=t.clientX-x0, dy=t.clientY-y0;
+    if(Math.abs(dx)<60 || Math.abs(dx)<Math.abs(dy)*1.6) return;              // precisa ser claramente horizontal
+    const i=TABS.indexOf(activeTab); if(i<0) return;
+    const ni = dx<0 ? i+1 : i-1;                                             // ← próxima · → anterior
+    if(ni<0 || ni>=TABS.length) return;                                      // não passa do começo/fim
+    navTo(TABS[ni]); window.scrollTo(0,0);
+  },{passive:true});
+})();
 
 // PULL TO REFRESH (puxar para atualizar)
 (function(){
