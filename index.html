@@ -824,7 +824,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v19'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v20'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1663,6 +1663,7 @@ function renderDashboard() {
   const allExp=txs.filter(t=>t.type==='expense');
   const exp=allExp.filter(t=>!t.transfer), inc=txs.filter(t=>t.type==='income'); // exp = consumo (sem aportes)
   const totalExp=exp.reduce((s,t)=>s+t.amount,0);                 // gastos de consumo
+  const credExp=exp.filter(t=>t.payment==='credito').reduce((s,t)=>s+t.amount,0); // parte no crédito (ainda não saiu da conta — vai pra fatura)
   const totalInc=inc.reduce((s,t)=>s+t.amount,0);
   const totalAll=allExp.reduce((s,t)=>s+t.amount,0);              // inclui aportes a investimentos
   const balance=totalInc-totalAll;                                // saldo real (aporte sai do saldo)
@@ -1719,7 +1720,7 @@ function renderDashboard() {
     <div class="card-title">Resumo de ${MONTHS_FULL[currentMonth]}</div>
     <div class="dash-grid">
       <div class="dash-tile"><div class="dt-lbl">Receitas</div><div class="dt-val" style="color:var(--green)">${fmt(totalInc)}${trendArrow(totalInc,prevInc)}</div></div>
-      <div class="dash-tile"><div class="dt-lbl">Despesas</div><div class="dt-val" style="color:var(--red)">${fmt(totalExp)}${trendArrow(totalExp,prevExp)}</div></div>
+      <div class="dash-tile"><div class="dt-lbl">Despesas</div><div class="dt-val" style="color:var(--red)">${fmt(totalExp)}${trendArrow(totalExp,prevExp)}</div>${credExp>0?`<div style="font-size:.66rem;color:var(--text3);margin-top:2px;line-height:1.2">↳ ${fmt(credExp)} no crédito <span style="opacity:.7">(vai pra fatura)</span></div>`:''}</div>
       <div class="dash-tile"><div class="dt-lbl">Saldo do mês</div><div class="dt-val" style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmt(balance)}</div></div>
       <div class="dash-tile"><div class="dt-lbl">Contas a pagar</div><div class="dt-val" style="color:var(--orange)">${fmt(toPay)}</div></div>
     </div>
