@@ -702,6 +702,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <button class="btn-secondary" onclick="closeImportModal()">Cancelar</button>
     <button class="btn-primary" style="flex:1.5" onclick="parseFatura()">Importar</button>
   </div>
+  <div style="text-align:center;margin-top:8px"><button class="btn-ghost" style="font-size:.74rem;color:var(--red)" onclick="clearImportedCard()">🗑️ Apagar importados deste cartão (reimportar limpo)</button></div>
 </div></div>
 
 <!-- INPUT MODAL (substitui prompt) -->
@@ -830,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v23'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v24'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -908,6 +909,7 @@ function migrateImportedInstallments() {
     let changed = 0;
     state.transactions.forEach(t=>{
       if (!t.imported || !t.installTot || !t.cardId || !t.date) return;
+      if (t.realDate) return; // esquema novo: data real da compra — não clampar pro dia de fechamento
       const closing = cardClose[t.cardId]; if (!closing) return;
       const parts = String(t.date).split('-'); if (parts.length!==3) return;
       const y=+parts[0], m=+parts[1], day=+parts[2];
@@ -3950,6 +3952,17 @@ function openImportFatura(){
   setTimeout(()=>document.getElementById('importText').focus(),120);
 }
 function closeImportModal(){ document.getElementById('importModal').classList.remove('open'); }
+// Apaga só os lançamentos IMPORTADOS deste cartão (mantém os manuais) — pra reimportar sem duplicar.
+function clearImportedCard(){
+  const card=getCard(importCardId); if(!card) return;
+  const victims=state.transactions.filter(t=>t.imported && t.cardId===card.id);
+  if(!victims.length){ showToast('Nada importado neste cartão ainda','info'); return; }
+  openConfirm('Apagar '+victims.length+' lançamento(s) importado(s) do cartão "'+esc(card.name)+'"? Os lançamentos manuais ficam.', ()=>{
+    const ids=new Set(victims.map(t=>t.id));
+    state.transactions=state.transactions.filter(t=>!ids.has(t.id));
+    saveState(); showToast('🗑️ '+ids.size+' importado(s) apagado(s) — pode reimportar','info'); renderCurrentTab(); updateBudgetBadge();
+  }, {okLabel:'Apagar'});
+}
 function parseValorBR(s){
   if(!s) return NaN;
   s=String(s).replace(/R\$/gi,'').replace(/U\$/gi,'').replace(/US\$/gi,'').trim();
@@ -4012,20 +4025,21 @@ function parseFatura(){
     const cat=guessCat(desc);
     if(pm){
       // PARCELADO: projeta TODAS as parcelas (1..tot), uma por fatura — inclui histórico já pago
-      const cur=parseInt(pm[1]), tot=parseInt(pm[2]);
-      const base=invoiceMonthOf(origDate, closing); // mês da 1ª parcela
-      const groupId='imp|'+card.id+'|'+normDesc(desc)+'|'+tot; // mesmo grupo p/ excluir todas de uma vez
+      const tot=parseInt(pm[2]);
+      const pdt=new Date(origDate+'T12:00:00');                 // data REAL da compra (parcela 1)
+      const pm0=pdt.getMonth(), py0=pdt.getFullYear(), pday=pdt.getDate();
+      const groupId='imp|'+card.id+'|'+normDesc(desc)+'|'+tot;  // mesmo grupo p/ excluir todas de uma vez
       for(let i=1;i<=tot;i++){
-        let tm=base.m+(i-1), ty=base.y+Math.floor(tm/12); tm=((tm%12)+12)%12;
-        // Ancora no dia de fechamento (≤ closing) pra invoiceKeyFor NÃO empurrar de novo p/ a fatura seguinte
-        const dd=Math.min(closing, new Date(ty,tm+1,0).getDate());
+        let tm=pm0+(i-1), ty=py0+Math.floor(tm/12); tm=((tm%12)+12)%12;
+        // mostra o MESMO dia da compra, mês a mês; o invoiceKeyFor joga cada parcela na fatura certa pelo fechamento
+        const dd=Math.min(pday, new Date(ty,tm+1,0).getDate());
         const date=fdate(ty,tm,dd), mk=date.slice(0,7);
         const k=card.id+'|'+normDesc(desc)+'|'+i+'/'+tot+'|'+mk;
         if(sig.has(k)){ skipped++; continue; }
         sig.add(k);
         state.transactions.push({id:uid(),description:desc||'Compra cartão',amount:val,date,category:cat,
           payment:'credito',cardId:card.id,type:'expense',person:owner,splitMode:owner==='both'?'50-50':null,
-          splitPct:null,note:null,recurring:null,installCur:i,installTot:tot,installGroup:groupId,imported:true,
+          splitPct:null,note:null,recurring:null,installCur:i,installTot:tot,installGroup:groupId,imported:true,realDate:true,
           createdBy:getCurrentUser(),createdAt:new Date().toISOString()});
         added++;
       }
