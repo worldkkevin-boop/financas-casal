@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v24'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v25'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -870,7 +870,7 @@ let currentType = 'expense';
 let currentPerson = 'p1';
 let currentSplitMode = '50-50';
 let flowChartInstance = null;
-let txFilter = {search:'',person:'all',category:''};
+let txFilter = {search:'',person:'all',category:'',card:''};
 let depositingGoalId = null;
 let currentGoalType = 'meta';
 let pinBuffer = '';
@@ -1830,35 +1830,45 @@ function initCharts() {
 // TRANSACTIONS
 // ============================================================
 function renderTransactions() {
-  let txs=[...getMonthTx()].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const allTxs=txs;
-  if (txFilter.search){const q=txFilter.search.toLowerCase();txs=txs.filter(t=>t.description.toLowerCase().includes(q)||(t.note||'').toLowerCase().includes(q));}
-  if (txFilter.person!=='all') txs=txs.filter(t=>t.person===txFilter.person);
-  if (txFilter.category) txs=txs.filter(t=>t.category===txFilter.category);
-  const totalF=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-
-  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
-  const thisDescs=new Set(getMonthTx().map(t=>t.description));
-  const missRec=recurring.filter(t=>!thisDescs.has(t.description));
-
+  const cards=state.cards||[];
+  const active=(txFilter.search||txFilter.person!=='all'||txFilter.category||txFilter.card);
+  // Barra de filtros fica FORA da área que re-renderiza — assim a busca não perde o foco ao digitar.
   const filterBar=`<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:11px">
-    <input class="form-input" placeholder="🔍 Buscar..." value="${txFilter.search}" oninput="txFilter.search=this.value;renderCurrentTab()" style="font-size:.83rem"/>
-    <div style="display:flex;gap:7px">
-      <select class="form-select" style="flex:1;font-size:.78rem" onchange="txFilter.person=this.value;renderCurrentTab()">
+    <input class="form-input" id="txSearch" placeholder="🔍 Buscar..." value="${esc(txFilter.search)}" oninput="txFilter.search=this.value;refreshTxList()" style="font-size:.83rem"/>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <select class="form-select" style="flex:1;min-width:118px;font-size:.78rem" onchange="txFilter.person=this.value;renderCurrentTab()">
         <option value="all" ${txFilter.person==='all'?'selected':''}>Todos</option>
         <option value="p1" ${txFilter.person==='p1'?'selected':''}>${esc(state.p1name)}</option>
         <option value="p2" ${txFilter.person==='p2'?'selected':''}>${esc(state.p2name)}</option>
         <option value="both" ${txFilter.person==='both'?'selected':''}>Ambos</option>
       </select>
-      <select class="form-select" style="flex:1;font-size:.78rem" onchange="txFilter.category=this.value;renderCurrentTab()">
+      <select class="form-select" style="flex:1;min-width:118px;font-size:.78rem" onchange="txFilter.category=this.value;renderCurrentTab()">
         <option value="">Todas cats.</option>
         ${CATS_EXPENSE.map(c=>'<option value="'+c.id+'" '+(txFilter.category===c.id?'selected':'')+'>'+c.icon+' '+c.name+'</option>').join('')}
       </select>
-      ${(txFilter.search||txFilter.person!=='all'||txFilter.category)?'<button class="btn-secondary" style="padding:8px 10px;white-space:nowrap;font-size:.76rem" onclick="clearTxFilter()">✕ Limpar</button>':''}
+      ${cards.length?`<select class="form-select" style="flex:1;min-width:118px;font-size:.78rem" onchange="txFilter.card=this.value;renderCurrentTab()">
+        <option value="">Todos cartões</option>
+        ${cards.map(c=>'<option value="'+c.id+'" '+(txFilter.card===c.id?'selected':'')+'>💳 '+esc(c.name)+'</option>').join('')}
+      </select>`:''}
+      ${active?'<button class="btn-secondary" style="padding:8px 10px;white-space:nowrap;font-size:.76rem" onclick="clearTxFilter()">✕ Limpar</button>':''}
     </div>
-    ${txs.length!==allTxs.length?'<div style="font-size:.72rem;color:var(--text3)">'+txs.length+' de '+allTxs.length+' · Gastos: <span style="color:var(--red)">'+fmt(totalF)+'</span></div>':''}
   </div>`;
+  return filterBar+'<div id="txListWrap">'+renderTxListInner()+'</div>';
+}
+// Atualiza só a lista (usado pela busca) sem mexer na barra de filtros — não rouba o foco do input.
+function refreshTxList(){ const w=document.getElementById('txListWrap'); if(w) w.innerHTML=renderTxListInner(); }
+function renderTxListInner(){
+  let txs=[...getMonthTx()].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const allTxs=txs;
+  if (txFilter.search){const q=txFilter.search.toLowerCase();txs=txs.filter(t=>t.description.toLowerCase().includes(q)||(t.note||'').toLowerCase().includes(q));}
+  if (txFilter.person!=='all') txs=txs.filter(t=>t.person===txFilter.person);
+  if (txFilter.category) txs=txs.filter(t=>t.category===txFilter.category);
+  if (txFilter.card) txs=txs.filter(t=>t.cardId===txFilter.card);
+  const totalF=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
 
+  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
+  const thisDescs=new Set(getMonthTx().map(t=>t.description));
+  const missRec=recurring.filter(t=>!thisDescs.has(t.description));
   const recBanner=missRec.length?`<div style="background:#a78bfa14;border:1px solid #a78bfa33;border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
     <span>🔁</span>
     <div style="flex:1"><div style="font-size:.8rem;font-weight:600;color:var(--accent2)">Recorrentes pendentes</div>
@@ -1866,11 +1876,13 @@ function renderTransactions() {
     <button class="btn-ghost" style="font-size:.76rem;color:var(--accent2)" onclick="relançarRecorrentes()">+ Lançar</button>
   </div>`:'';
 
-  if (!txs.length) return filterBar+recBanner+`<div class="card"><div class="empty-state"><div class="e-icon">💳</div><p>Nenhum lançamento encontrado.</p></div></div>`;
+  const countLine=(txs.length!==allTxs.length)?'<div style="font-size:.72rem;color:var(--text3);margin-bottom:8px">'+txs.length+' de '+allTxs.length+' · Gastos: <span style="color:var(--red)">'+fmt(totalF)+'</span></div>':'';
+
+  if (!txs.length) return recBanner+countLine+`<div class="card"><div class="empty-state"><div class="e-icon">💳</div><p>Nenhum lançamento encontrado.</p></div></div>`;
 
   const byDate={};
   txs.forEach(t=>{if(!byDate[t.date])byDate[t.date]=[];byDate[t.date].push(t);});
-  return filterBar+recBanner+Object.entries(byDate).map(([date,items])=>{
+  return recBanner+countLine+Object.entries(byDate).map(([date,items])=>{
     const d=new Date(date+'T12:00:00');
     const label=d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
     const dayTotal=items.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
@@ -1913,7 +1925,7 @@ function renderTxItem(t) {
   return '<div class="tx-item'+itemCls+'" onclick="editTx(\''+t.id+'\')"><div class="tx-icon" style="background:'+cat.color+'22">'+cat.icon+'</div><div class="tx-info"><div class="tx-desc">'+esc(t.description)+(t.recurring?'<span style="font-size:.65rem;opacity:.6;margin-left:4px">🔁</span>':'')+'</div><div class="tx-meta"><span>'+esc(cat.name)+'</span><span>·</span><span class="chip '+personClass+'">'+esc(personLabel)+'</span>'+(t.note?'<span style="font-style:italic">'+esc(t.note)+'</span>':'')+cardBadge+installBadge+payChip+'</div></div><div class="tx-amount '+t.type+'">'+(t.type==='expense'?'-':'+')+fmt(t.amount)+'</div></div>';
 }
 
-function clearTxFilter() { txFilter={search:'',person:'all',category:''}; renderCurrentTab(); }
+function clearTxFilter() { txFilter={search:'',person:'all',category:'',card:''}; renderCurrentTab(); }
 function relançarRecorrentes() {
   const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
