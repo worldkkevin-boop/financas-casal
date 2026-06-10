@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v26'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v27'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -871,6 +871,7 @@ let currentPerson = 'p1';
 let currentSplitMode = '50-50';
 let flowChartInstance = null;
 let txFilter = {search:'',person:'all',category:'',card:''};
+let txRunningBal = null; // mapa id->saldo acumulado do mês (só na lista sem filtro)
 let depositingGoalId = null;
 let currentGoalType = 'meta';
 let pinBuffer = '';
@@ -1668,6 +1669,7 @@ function renderDashEditor(){
 }
 
 function renderDashboard() {
+  txRunningBal=null; // o widget "Últimos lançamentos" não mostra saldo corrente
   const txs=getMonthTx(), prevTxs=getMonthTx(currentMonth>0?currentMonth-1:11, currentMonth>0?currentYear:currentYear-1);
   const allExp=txs.filter(t=>t.type==='expense');
   const exp=allExp.filter(t=>!t.transfer), inc=txs.filter(t=>t.type==='income'); // exp = consumo (sem aportes)
@@ -1906,6 +1908,16 @@ function renderTxListInner(){
   if (txFilter.card) txs=txs.filter(t=>t.cardId===txFilter.card);
   const totalF=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
 
+  // Saldo corrente: só quando a lista está SEM filtro (senão fica enganoso).
+  // Acumula de baixo (mais antigo) pra cima: cada linha = saldo do mês até ela.
+  const noFilter = !txFilter.search && txFilter.person==='all' && !txFilter.category && !txFilter.card;
+  txRunningBal = null;
+  if(noFilter){
+    txRunningBal={};
+    let run=0;
+    for(let i=allTxs.length-1;i>=0;i--){ const t=allTxs[i]; run += (t.type==='income'?(t.amount||0):-(t.amount||0)); txRunningBal[t.id]=run; }
+  }
+
   const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
   const missRec=recurring.filter(t=>!thisDescs.has(t.description));
@@ -1962,7 +1974,9 @@ function renderTxItem(t) {
     ? '<span class="tx-pay ok" onclick="event.stopPropagation();toggleTxPaid(\''+t.id+'\')">✅ pago</span>'
     : '<span class="tx-pay pend" onclick="event.stopPropagation();toggleTxPaid(\''+t.id+'\')">🕓 marcar pago</span>'):'';
   const itemCls=showPay?(paid?' paid':' pending'):'';
-  return '<div class="tx-item'+itemCls+'" onclick="editTx(\''+t.id+'\')"><div class="tx-icon" style="background:'+cat.color+'22">'+cat.icon+'</div><div class="tx-info"><div class="tx-desc">'+esc(t.description)+(t.recurring?'<span style="font-size:.65rem;opacity:.6;margin-left:4px">🔁</span>':'')+'</div><div class="tx-meta"><span>'+esc(cat.name)+'</span><span>·</span><span class="chip '+personClass+'">'+esc(personLabel)+'</span>'+(t.note?'<span style="font-style:italic">'+esc(t.note)+'</span>':'')+cardBadge+installBadge+payChip+'</div></div><div class="tx-amount '+t.type+'">'+(t.type==='expense'?'-':'+')+fmt(t.amount)+'</div></div>';
+  const bal=(txRunningBal&&txRunningBal[t.id]!=null)?txRunningBal[t.id]:null;
+  const balHtml=bal!=null?'<div style="font-size:.6rem;color:'+(bal<0?'var(--red)':'var(--text3)')+';margin-top:1px;font-family:var(--font-d)">→ '+fmt(bal)+'</div>':'';
+  return '<div class="tx-item'+itemCls+'" onclick="editTx(\''+t.id+'\')"><div class="tx-icon" style="background:'+cat.color+'22">'+cat.icon+'</div><div class="tx-info"><div class="tx-desc">'+esc(t.description)+(t.recurring?'<span style="font-size:.65rem;opacity:.6;margin-left:4px">🔁</span>':'')+'</div><div class="tx-meta"><span>'+esc(cat.name)+'</span><span>·</span><span class="chip '+personClass+'">'+esc(personLabel)+'</span>'+(t.note?'<span style="font-style:italic">'+esc(t.note)+'</span>':'')+cardBadge+installBadge+payChip+'</div></div><div style="text-align:right;flex-shrink:0"><div class="tx-amount '+t.type+'">'+(t.type==='expense'?'-':'+')+fmt(t.amount)+'</div>'+balHtml+'</div></div>';
 }
 
 function clearTxFilter() { txFilter={search:'',person:'all',category:'',card:''}; renderCurrentTab(); }
