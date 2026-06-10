@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v25'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v26'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1630,6 +1630,7 @@ const DASH_WIDGETS = [
   {id:'reserva',    label:'🐷 Reserva da fatura'},
   {id:'sonho',      label:'✈️ Sonho'},
   {id:'categorias', label:'🏷️ Por categoria'},
+  {id:'mapa',       label:'🗺️ Mapa de gastos'},
   {id:'fluxo',      label:'📈 Fluxo do mês'},
   {id:'recentes',   label:'🧾 Últimos lançamentos'},
 ];
@@ -1792,10 +1793,49 @@ function renderDashboard() {
     <div class="tx-list">${recent.map(t=>renderTxItem(t)).join('')}</div>
   </div>`:`<div class="card"><div class="empty-state"><div class="e-icon">💸</div><p>Nenhum lançamento em ${MONTHS_FULL[currentMonth]}.<br>Toque no <strong>+</strong> para começar!</p></div></div>`;
 
+  P.mapa = renderHeatmap();
+
   if(dashEditMode) return renderDashEditor();
   const layout=getDashLayout();
   return layout.filter(x=>!x.hidden).map(x=>P[x.id]||'').join('')
     + `<button class="dash-customize" onclick="toggleDashEdit()">⚙ Personalizar início</button>`;
+}
+
+// Mapa de gastos: calendário do mês com cada dia mais "quente" conforme o gasto (estilo heatmap).
+function renderHeatmap(){
+  const y=currentYear, m=currentMonth;
+  const startW=new Date(y,m,1).getDay();            // 0=Dom
+  const daysInM=new Date(y,m+1,0).getDate();
+  const tot={};
+  (state.transactions||[]).forEach(t=>{
+    if(t.type!=='expense'||t.transfer) return;
+    const d=new Date((t.date||'')+'T12:00:00');
+    if(d.getFullYear()!==y||d.getMonth()!==m) return;
+    tot[d.getDate()]=(tot[d.getDate()]||0)+(t.amount||0);
+  });
+  const vals=Object.values(tot);
+  const max=Math.max(1,...vals);
+  const monthTotal=vals.reduce((s,v)=>s+v,0);
+  const color=v=>{ if(!v) return 'var(--surface2)'; const r=v/max; return r<=.25?'#ff5f7e33':r<=.5?'#ff5f7e66':r<=.75?'#ff5f7eaa':'#ff5f7e'; };
+  const hoje=new Date(), isThisMonth=(hoje.getFullYear()===y&&hoje.getMonth()===m);
+  const wd=['D','S','T','Q','Q','S','S'];
+  let cells='';
+  for(let i=0;i<startW;i++) cells+='<div></div>';
+  for(let day=1;day<=daysInM;day++){
+    const v=tot[day]||0;
+    const isToday=isThisMonth&&hoje.getDate()===day;
+    const click=v>0?` onclick="showToast('Dia ${day}: ${fmt(v)} em gastos','info')"`:'';
+    cells+=`<div${click} style="aspect-ratio:1;border-radius:6px;background:${color(v)};display:flex;align-items:center;justify-content:center;font-size:.58rem;color:${v/max>.5?'#fff':'var(--text3)'};${isToday?'outline:2px solid var(--cyan);outline-offset:-2px;':''}${v>0?'cursor:pointer':''}">${day}</div>`;
+  }
+  const sq=c=>`<span style="width:11px;height:11px;border-radius:3px;background:${c};display:inline-block;vertical-align:middle"></span>`;
+  return `<div class="card fade-up">
+    <div class="card-title">🗺️ Mapa de gastos <span style="font-size:.76rem;color:var(--text3);font-weight:600">${MONTHS_FULL[m]} · ${fmt(monthTotal)}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+      ${wd.map(d=>'<div style="text-align:center;font-size:.58rem;color:var(--text3);margin-bottom:2px">'+d+'</div>').join('')}
+      ${cells}
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;font-size:.62rem;color:var(--text3);margin-top:8px">menos ${sq('var(--surface2)')}${sq('#ff5f7e33')}${sq('#ff5f7e66')}${sq('#ff5f7eaa')}${sq('#ff5f7e')} mais</div>
+  </div>`;
 }
 
 function initCharts() {
