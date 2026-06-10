@@ -824,7 +824,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v18'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v19'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1465,15 +1465,18 @@ function ensureWallets(){ if(!state.wallets) state.wallets={p1:0,p2:0,p1d:null,p
 function walletBalance(p){
   ensureWallets();
   const base=state.wallets[p]||0;
-  const since=state.wallets[p+'d'];
-  if(!since) return base; // sem data base = mostra o valor informado (ainda não rastreia)
+  // âncora: o MOMENTO em que o saldo foi definido (ms). Compatível com versões antigas (só data).
+  const anchor = state.wallets[p+'t'] || (state.wallets[p+'d'] ? Date.parse(state.wallets[p+'d']+'T00:00:00') : 0);
+  if(!anchor) return base; // nunca definiu o saldo = só mostra o valor informado
   const hoje=new Date().toISOString().slice(0,10);
   let mov=0;
   (state.transactions||[]).forEach(t=>{
     if(t.person!==p || t.transfer) return;
     if(t.payment==='credito') return;            // crédito vai pra fatura, não sai da conta agora
+    const ct = t.createdAt ? Date.parse(t.createdAt) : (t.date ? Date.parse(t.date+'T12:00:00') : 0);
+    if(ct && ct <= anchor) return;               // só conta o que foi lançado DEPOIS de definir o saldo (fim do desconto dobrado)
     const dt=t.date||'';
-    if(dt < since || dt > hoje) return;          // só conta do dia da base até HOJE (ignora futuro, ex: salário do dia 20)
+    if(dt > hoje) return;                          // futuro (ex: salário do dia 20) só conta quando chegar
     mov += (t.type==='income') ? (t.amount||0) : -(t.amount||0);
   });
   return base+mov;
@@ -1482,9 +1485,32 @@ function walletsTotal(){ ensureWallets(); return walletBalance('p1')+(isSolo()?0
 function setWallet(p){
   ensureWallets();
   const nome=p==='p1'?state.p1name:state.p2name;
+  const anchored = (state.wallets[p+'t']!=null) || (state.wallets[p+'d']!=null); // já tem saldo definido antes?
+  const atual = walletBalance(p);
   openInputModal('💵 Saldo em conta — '+nome,[
-    {key:'v',label:'Quanto '+nome+' tem AGORA na conta (R$)',type:'number',step:'0.01',value:state.wallets[p]||'',placeholder:'0,00'}
-  ], vals=>{ state.wallets[p]=Math.max(0,parseFloat(vals.v)||0); state.wallets[p+'d']=new Date().toISOString().slice(0,10); saveState(); renderCurrentTab(); });
+    {key:'v',label:'Quanto '+nome+' tem AGORA na conta (R$)',type:'number',step:'0.01',value:(anchored?atual:(state.wallets[p]||'')),placeholder:'0,00'}
+  ], vals=>{
+    const X=Math.max(0,parseFloat(vals.v)||0);
+    if(!anchored){
+      // 1ª vez: define o saldo inicial (ancora no momento exato)
+      state.wallets[p]=X; state.wallets[p+'t']=Date.now(); state.wallets[p+'d']=new Date().toISOString().slice(0,10);
+      saveState(); showToast('💵 Saldo de '+nome+' definido','success'); renderCurrentTab(); return;
+    }
+    // Correção: registra um "Ajuste de saldo" pela diferença (fica no histórico)
+    const diff=Math.round((X-atual)*100)/100;
+    if(diff!==0){
+      const isInc=diff>0;
+      state.transactions.push({
+        id:uid(), person:p, type:isInc?'income':'expense', amount:Math.abs(diff),
+        category:isInc?'outros_r':'outros', payment:'pix', date:new Date().toISOString().slice(0,10),
+        createdAt:new Date().toISOString(), createdBy:(localStorage.getItem('nosDoisUser')||'p1'),
+        description:'⚖️ Ajuste de saldo', note:'Ajuste manual', adjust:true,
+        cardId:null, splitMode:null, splitPct:null, recurring:null, installCur:null, installTot:null
+      });
+      saveState(); showToast((isInc?'+ ':'− ')+fmt(Math.abs(diff))+' — ajuste registrado','success');
+    } else { showToast('Saldo já estava certinho 👍','info'); }
+    renderCurrentTab();
+  });
 }
 function renderWalletsCard(){
   ensureWallets();
@@ -1493,7 +1519,7 @@ function renderWalletsCard(){
   let html='<div class="card fade-up"><div class="card-title">💵 Em conta'+(isSolo()?'':' (de cada um)')+'<span style="font-size:.9rem;color:var(--cyan);font-family:var(--font-d);font-weight:800">'+fmt(total)+'</span></div>';
   html+=row('p1','p1');
   if(!isSolo()) html+=row('p2','p2');
-  html+='<div style="font-size:.68rem;color:var(--text3);text-align:center;margin-top:7px">Toque pra definir o saldo. Os gastos no débito/pix de cada um já descontam sozinhos.</div></div>';
+  html+='<div style="font-size:.68rem;color:var(--text3);text-align:center;margin-top:7px">Toque no ✏️ pra ajustar o saldo real — a diferença vira um <b>"Ajuste de saldo"</b> no histórico. Gastos no débito/pix já descontam sozinhos.</div></div>';
   return html;
 }
 function patrimonioTotal(){
