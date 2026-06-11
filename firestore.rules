@@ -9,19 +9,19 @@ service cloud.firestore {
 
     // Cada casal é um documento. No máximo 2 membros (vocês dois).
     match /couples/{coupleId} {
-
-      // Criar o casal: precisa estar logado.
+      // ... (existing rules)
       allow create: if request.auth != null;
-
-      // Ler/editar/excluir: precisa estar logado E
-      //  - ser um membro já registrado, OU
-      //  - ainda haver vaga (menos de 2 membros) — é assim que o parceiro(a) entra pelo convite, OU
-      //  - documento antigo sem o campo 'members' (compatibilidade).
       allow read, update, delete: if request.auth != null && (
         !('members' in resource.data) ||
         request.auth.uid in resource.data.members ||
         resource.data.members.size() < 2
       );
+    }
+
+    // Gerenciamento de IA: Totalmente privado, apenas o dono do dado acessa.
+    match /ai_management/{docId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
   }
 }

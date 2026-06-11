@@ -514,6 +514,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <button class="nav-tab" onclick="showTab('portfolio',this)">📈 Carteira</button>
     <button class="nav-tab" onclick="showTab('dream',this)">✈️ Sonho</button>
     <button class="nav-tab" onclick="showTab('annual',this)">📅 Ano</button>
+    <button class="nav-tab" id="tabAI" onclick="showTab('ai',this)" style="display:none">🤖 IA Studio</button>
     <button class="nav-tab" onclick="showTab('settings',this)">⚙️ Config</button>
   </nav>
   </div>
@@ -739,6 +740,44 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
     <button class="btn-primary" style="flex:1.5" onclick="saveBudget()">Salvar</button>
   </div>
   <button class="btn-ghost" style="width:100%;margin-top:9px;font-size:.8rem;color:var(--text3)" onclick="hideCategory(editingBudgetCatId)">🚫 Não usar esta categoria</button>
+</div></div>
+
+<!-- AI MODAL -->
+<div class="modal-overlay" id="aiModal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="modal-title" id="aiModalTitle">Novo Serviço de IA</div>
+  <div class="form-grid">
+    <div class="form-group full"><label class="form-label">Nome do Serviço</label><input class="form-input" id="aiName" placeholder="Ex: ChatGPT Plus"/></div>
+    <div class="form-group"><label class="form-label">Custo</label><input class="form-input" id="aiAmount" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
+    <div class="form-group"><label class="form-label">Moeda</label>
+      <select class="form-select" id="aiCurrency">
+        <option value="BRL">R$ (Real)</option>
+        <option value="USD">US$ (Dólar)</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Renovação</label>
+      <select class="form-select" id="aiCycle">
+        <option value="mensal">Mensal</option>
+        <option value="anual">Anual</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Próxima Renovação</label><input class="form-input" id="aiNextDate" type="date"/></div>
+    <div class="form-group full"><label class="form-label">Categoria</label>
+      <select class="form-select" id="aiCat">
+        <option value="texto">Texto / Chat</option>
+        <option value="imagem">Imagem / Vídeo</option>
+        <option value="coding">Programação</option>
+        <option value="prod">Produtividade</option>
+        <option value="outros">Outros</option>
+      </select>
+    </div>
+    <div class="form-group full"><label class="form-label">Retorno / ROI (Notas)</label><textarea class="form-input" id="aiROI" rows="3" placeholder="O que essa IA traz de ganho?" style="background:var(--surface2);border:1.5px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-b);font-size:.86rem;padding:9px 11px;outline:none;transition:border-color .2s;width:100%"></textarea></div>
+  </div>
+  <div class="btn-row" style="margin-top:13px">
+    <button class="btn-secondary" onclick="closeAIModal()">Cancelar</button>
+    <button class="btn-danger" id="btnDeleteAI" style="display:none;padding:9px 12px" onclick="deleteAICurrent()">🗑</button>
+    <button class="btn-primary" style="flex:1.5" onclick="saveAI()">Salvar</button>
+  </div>
 </div></div>
 
 <script>
@@ -1141,7 +1180,21 @@ function showLoginScreen(){ _hideOverlays(); _hideSplash(); document.getElementB
 function showOnboard(u){ _hideOverlays(); _hideSplash(); document.getElementById('app').classList.remove('visible'); const nm=document.getElementById('obName'); if(nm) nm.textContent=((u&&u.displayName)||'').split(' ')[0]||''; const j=document.getElementById('obJoin'); if(j) j.style.display='none'; const ob=document.getElementById('onboardScreen'); if(ob) ob.style.display='flex'; }
 function obShowJoin(){ const j=document.getElementById('obJoin'); if(j){ j.style.display='flex'; const i=document.getElementById('obCode'); if(i) setTimeout(()=>{ try{i.focus();}catch(e){} },100); } }
 function obHint(t){ const h=document.getElementById('obHint'); if(h) h.textContent=t||''; }
-function revealApp(){ _hideOverlays(); _hideSplash(); document.getElementById('app').classList.add('visible'); initApp(); if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }
+function revealApp(){
+  _hideOverlays(); _hideSplash();
+  document.getElementById('app').classList.add('visible');
+  // Exclusividade IA Studio
+  const u = firebase.auth().currentUser;
+  if(u && u.email === 'worldkkevin@gmail.com'){
+    const t = document.getElementById('tabAI');
+    if(t) t.style.display = 'flex';
+  } else {
+    const t = document.getElementById('tabAI');
+    if(t) t.style.display = 'none';
+  }
+  initApp();
+  if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
+}
 // Tela "Carregando…" enquanto o Google confirma o login (evita flash de login/PIN no reload)
 function showLoading(){ _hideOverlays(); const sp=document.getElementById('splash'); if(sp){ sp.classList.remove('hide'); sp.style.display='flex'; } const l=document.getElementById('splashLoading'); if(l) l.style.display='flex'; const p=document.getElementById('pinScreen'); if(p) p.style.display='none'; const m=document.getElementById('modeScreen'); if(m) m.style.display='none'; document.getElementById('app').classList.remove('visible'); }
 
@@ -1168,6 +1221,10 @@ async function authRouter(u){
 }
 async function enterApp(){
   if(USE_FIREBASE && state.coupleId) subscribeFirebase();
+  // Se for o admin da IA, assina a coleção privada
+  const u = firebase.auth().currentUser;
+  if(u && u.email === 'worldkkevin@gmail.com') subscribeAI();
+
   if(state.pinEnabled && state.pin && localStorage.getItem('nosDoisUnlocked')!=='1'){
     _hideOverlays(); const sp=document.getElementById('splash'); if(sp){ sp.classList.remove('hide'); sp.style.display='flex'; }
     const sl=document.getElementById('splashLoading'); if(sl) sl.style.display='none';
@@ -1273,10 +1330,12 @@ function showTab(tab,el) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active'); activeTab=tab; renderTab(tab);
   try { el.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'}); } catch(e){}
-  document.getElementById('fabBtn').onclick=(tab==='goals')?openGoalModal:openAddModal;
+  if(tab==='goals') document.getElementById('fabBtn').onclick=openGoalModal;
+  else if(tab==='ai') document.getElementById('fabBtn').onclick=openAIModal;
+  else document.getElementById('fabBtn').onclick=openAddModal;
 }
 function navTo(tab){
-  const map={dashboard:0,transactions:1,budget:2,goals:3,portfolio:4,dream:5,annual:6,settings:7};
+  const map={dashboard:0,transactions:1,budget:2,goals:3,portfolio:4,dream:5,annual:6,ai:7,settings:8};
   const el=document.querySelectorAll('.nav-tab')[map[tab]];
   if(el) showTab(tab,el);
 }
@@ -1293,6 +1352,7 @@ function renderTab(tab) {
   else if (tab==='portfolio') el.innerHTML=renderPortfolio();
   else if (tab==='dream') el.innerHTML=renderDream();
   else if (tab==='annual') { el.innerHTML=renderAnnual(); initAnnualChart(); }
+  else if (tab==='ai') el.innerHTML=renderAI();
   else if (tab==='settings') el.innerHTML=renderSettings();
 }
 
@@ -4439,7 +4499,7 @@ window.addEventListener('load', () => {
 
 // SWIPE LATERAL → troca de aba (cara de app nativo)
 (function(){
-  const TABS=['dashboard','transactions','budget','goals','portfolio','dream','annual','settings'];
+  const TABS=['dashboard','transactions','budget','goals','portfolio','dream','annual','ai','settings'];
   let x0=0,y0=0,tracking=false;
   function blocked(t){
     if(document.querySelector('.modal-overlay.open')) return true;            // modal aberto
@@ -4462,6 +4522,161 @@ window.addEventListener('load', () => {
     navTo(TABS[ni]); window.scrollTo(0,0);
   },{passive:true});
 })();
+
+// ============================================================
+// AI STUDIO (EXCLUSIVO)
+// ============================================================
+let aiServices = [];
+let aiUnsubscriber = null;
+let editingAIId = null;
+
+async function subscribeAI() {
+  if (!USE_FIREBASE || !db || !currentUid) return;
+  if (aiUnsubscriber) aiUnsubscriber();
+  aiUnsubscriber = db.collection('ai_management')
+    .where('userId', '==', currentUid)
+    .onSnapshot(snap => {
+      aiServices = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+      if (activeTab === 'ai') renderCurrentTab();
+    }, err => {
+      console.error('AI Subscribe error:', err);
+    });
+}
+
+function renderAI() {
+  if (!aiServices.length) {
+    return `<div class="card fade-up">
+      <div class="card-title">🤖 IA Studio</div>
+      <div class="empty-state">
+        <div class="e-icon">🤖</div>
+        <p>Nenhum serviço de IA cadastrado.<br>Toque no <strong>+</strong> para começar!</p>
+      </div>
+    </div>`;
+  }
+
+  const totalBRL = aiServices.reduce((acc, s) => {
+    const val = parseFloat(s.amount) || 0;
+    if (s.currency === 'BRL') return acc + val;
+    const rate = (state.dream && state.dream.usdRate) || 5.5;
+    return acc + (val * rate);
+  }, 0);
+
+  const list = [...aiServices].sort((a, b) => new Date(a.nextDate) - new Date(b.nextDate));
+
+  return `
+    <div class="hero-card fade-up" style="background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%); border-color: #3b82f633">
+      <div class="hero-label">Gasto Mensal Estimado (IA)</div>
+      <div class="hero-amount pos" style="color: #60a5fa">${fmtHero(totalBRL)}</div>
+      <div class="hero-sub">Investimento em inteligência e produtividade</div>
+    </div>
+    <div class="card fade-up">
+      <div class="card-title">Minhas Assinaturas</div>
+      <div class="tx-list">
+        ${list.map(s => {
+          const catIcons = {texto: '💬', imagem: '🎨', coding: '💻', prod: '⚡', outros: '🤖'};
+          const icon = catIcons[s.category] || '🤖';
+          const next = s.nextDate ? new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR') : '---';
+          const isUSD = s.currency === 'USD';
+          const amountStr = new Intl.NumberFormat('pt-BR', {minimumFractionDigits: 2}).format(s.amount || 0);
+          return `
+            <div class="tx-item" onclick="editAI('${s.id}')" style="border-left: 3px solid #3b82f666">
+              <div class="tx-icon" style="background: #3b82f622">${icon}</div>
+              <div class="tx-info">
+                <div class="tx-desc">${esc(s.name)} <span style="font-size: .65rem; opacity: .6; background: var(--surface3); padding: 1px 5px; border-radius: 4px">${esc(s.cycle)}</span></div>
+                <div class="tx-meta">
+                  <span>Renova em: ${next}</span>
+                  ${s.roi ? `<span style="font-style: italic">· ${esc(s.roi)}</span>` : ''}
+                </div>
+              </div>
+              <div style="text-align: right">
+                <div class="tx-amount income" style="color: #60a5fa">${isUSD ? 'US$' : 'R$'}${amountStr}</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function openAIModal() {
+  editingAIId = null;
+  document.getElementById('aiModalTitle').textContent = 'Novo Serviço de IA';
+  document.getElementById('aiName').value = '';
+  document.getElementById('aiAmount').value = '';
+  document.getElementById('aiCurrency').value = 'BRL';
+  document.getElementById('aiCycle').value = 'mensal';
+  document.getElementById('aiNextDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('aiCat').value = 'texto';
+  document.getElementById('aiROI').value = '';
+  document.getElementById('btnDeleteAI').style.display = 'none';
+  document.getElementById('aiModal').classList.add('open');
+}
+
+function editAI(id) {
+  const s = aiServices.find(x => x.id === id);
+  if (!s) return;
+  editingAIId = id;
+  document.getElementById('aiModalTitle').textContent = 'Editar Serviço';
+  document.getElementById('aiName').value = s.name || '';
+  document.getElementById('aiAmount').value = s.amount || '';
+  document.getElementById('aiCurrency').value = s.currency || 'BRL';
+  document.getElementById('aiCycle').value = s.cycle || 'mensal';
+  document.getElementById('aiNextDate').value = s.nextDate || '';
+  document.getElementById('aiCat').value = s.category || 'texto';
+  document.getElementById('aiROI').value = s.roi || '';
+  document.getElementById('btnDeleteAI').style.display = '';
+  document.getElementById('aiModal').classList.add('open');
+}
+
+function closeAIModal() {
+  document.getElementById('aiModal').classList.remove('open');
+}
+
+async function saveAI() {
+  const name = document.getElementById('aiName').value.trim();
+  const amount = parseFloat(document.getElementById('aiAmount').value) || 0;
+  if (!name) { showToast('Nome é obrigatório', 'error'); return; }
+
+  const data = {
+    name,
+    amount,
+    currency: document.getElementById('aiCurrency').value,
+    cycle: document.getElementById('aiCycle').value,
+    nextDate: document.getElementById('aiNextDate').value,
+    category: document.getElementById('aiCat').value,
+    roi: document.getElementById('aiROI').value,
+    userId: currentUid,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  try {
+    if (editingAIId) {
+      await db.collection('ai_management').doc(editingAIId).update(data);
+      showToast('Serviço atualizado', 'success');
+    } else {
+      await db.collection('ai_management').add(data);
+      showToast('Serviço cadastrado', 'success');
+    }
+    closeAIModal();
+  } catch (e) {
+    console.error(e);
+    showToast('Erro ao salvar no Firebase', 'error');
+  }
+}
+
+function deleteAICurrent() {
+  if (!editingAIId) return;
+  openConfirm('Excluir este serviço de IA?', async () => {
+    try {
+      await db.collection('ai_management').doc(editingAIId).delete();
+      showToast('Serviço removido', 'success');
+      closeAIModal();
+    } catch (e) {
+      showToast('Erro ao excluir', 'error');
+    }
+  });
+}
 
 // PULL TO REFRESH (puxar para atualizar)
 (function(){
