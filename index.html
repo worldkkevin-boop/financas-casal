@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v30'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v31'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1916,7 +1916,7 @@ function renderTxListInner(){
     for(let i=allTxs.length-1;i>=0;i--){ const t=allTxs[i]; run += (t.type==='income'?(t.amount||0):-(t.amount||0)); txRunningBal[t.id]=run; }
   }
 
-  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
+  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary&&t.category!=='salario');
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
   const _seenRec=new Set();
   const missRec=recurring.filter(t=>!thisDescs.has(t.description)&&!_seenRec.has(t.description)&&_seenRec.add(t.description));
@@ -1997,7 +1997,7 @@ function relançarUm(id){
   renderCurrentTab(); updateBudgetBadge();
 }
 function relançarRecorrentes() {
-  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
+  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary&&t.category!=='salario');
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
   const missing=recurring.filter(t=>!thisDescs.has(t.description));
   const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
