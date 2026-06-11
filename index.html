@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v31'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v32'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1760,7 +1760,23 @@ function renderDashboard() {
 
   P.cartoes = cards.length?`<div class="card fade-up">
     <div class="card-title">💳 Meus cartões<button class="btn-ghost" style="font-size:.74rem" onclick="navTo('settings')">gerenciar →</button></div>
-    ${cards.map(c=>{const fat=cardInvoiceTotal(c);const avail=Math.max(0,(c.limit||0)-fat);const st=cardStatus(c);return '<div onclick="navTo(\'settings\')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="display:flex;align-items:center;gap:9px;min-width:0">'+bankAvatar(c.bank,32)+'<div style="min-width:0"><div style="font-size:.86rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+'</div><div class="cc-status"><span class="dot" style="background:'+st.color+'"></span><span style="color:'+st.color+'">'+st.word+'</span><span style="color:var(--text3);font-weight:500"> · disp. '+fmt(avail)+'</span></div></div></div><div style="text-align:right"><div style="font-size:.64rem;color:var(--text3)">fatura '+MONTHS[currentMonth]+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:.88rem">'+fmt(fat)+'</div></div></div>';}).join('')}
+    ${cards.map(c=>{
+      const closing=c.closingDay||11;
+      const st=cardStatus(c);
+      const paidV=((state.cardReserve&&state.cardReserve.paid)||[]).includes(currentMonth+'-'+currentYear);
+      // Se a fatura do mês já está FECHADA e PAGA, mostra a ABERTA (a que está acumulando agora).
+      const showOpen=!st.open&&paidV;
+      let fat,lbl,stWord,stColor;
+      if(showOpen){
+        const k=invoiceKeyFor(new Date().toISOString().slice(0,10),closing).split('-');
+        fat=cardInvoiceTotal(c,+k[0],+k[1]);
+        lbl='fatura aberta · '+MONTHS[+k[0]]; stWord='Aberta · fecha '+closing; stColor='#3a8dff';
+      } else {
+        fat=cardInvoiceTotal(c); lbl='fatura '+MONTHS[currentMonth]+(paidV?' (paga)':''); stWord=st.word; stColor=st.color;
+      }
+      const avail=Math.max(0,(c.limit||0)-fat);
+      return '<div onclick="navTo(\'settings\')" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer"><div style="display:flex;align-items:center;gap:9px;min-width:0">'+bankAvatar(c.bank,32)+'<div style="min-width:0"><div style="font-size:.86rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(c.name)+'</div><div class="cc-status"><span class="dot" style="background:'+stColor+'"></span><span style="color:'+stColor+'">'+stWord+'</span><span style="color:var(--text3);font-weight:500"> · disp. '+fmt(avail)+'</span></div></div></div><div style="text-align:right"><div style="font-size:.64rem;color:var(--text3)">'+lbl+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:.88rem">'+fmt(fat)+'</div></div></div>';
+    }).join('')}
   </div>`:'';
 
   P.reserva = renderReserveCard();
