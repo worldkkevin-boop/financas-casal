@@ -762,6 +762,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
       </select>
     </div>
     <div class="form-group"><label class="form-label">Próxima Renovação</label><input class="form-input" id="aiNextDate" type="date"/></div>
+    <div class="form-group"><label class="form-label">Pretende Renovar?</label>
+      <select class="form-select" id="aiWillRenew">
+        <option value="sim">Sim, essencial</option>
+        <option value="talvez">Talvez, avaliar</option>
+        <option value="nao">Não, cancelar</option>
+      </select>
+    </div>
     <div class="form-group full"><label class="form-label">Categoria</label>
       <select class="form-select" id="aiCat">
         <option value="texto">Texto / Chat</option>
@@ -4552,59 +4559,133 @@ async function subscribeAI() {
 }
 
 function renderAI() {
-  if (!aiServices.length) {
-    return `<div class="card fade-up">
-      <div class="card-title">🤖 IA Studio</div>
-      <div class="empty-state">
-        <div class="e-icon">🤖</div>
-        <p>Nenhum serviço de IA cadastrado.<br>Toque no <strong>+</strong> para começar!</p>
-      </div>
-    </div>`;
-  }
-
+  const usdRate = (state.dream && state.dream.usdRate) || 5.5;
+  
   const totalBRL = aiServices.reduce((acc, s) => {
     const val = parseFloat(s.amount) || 0;
     if (s.currency === 'BRL') return acc + val;
-    const rate = (state.dream && state.dream.usdRate) || 5.5;
-    return acc + (val * rate);
+    return acc + (val * usdRate);
   }, 0);
 
-  const list = [...aiServices].sort((a, b) => new Date(a.nextDate) - new Date(b.nextDate));
+  const totalUSD = aiServices.reduce((acc, s) => {
+    const val = parseFloat(s.amount) || 0;
+    if (s.currency === 'USD') return acc + val;
+    return acc + (val / usdRate);
+  }, 0);
+
+  const today = new Date();
+  const renewalsSoon = aiServices.filter(s => {
+    if (!s.nextDate) return false;
+    const diff = (new Date(s.nextDate + 'T12:00:00') - today) / (1000 * 60 * 60 * 24);
+    return diff >= 0 && diff <= 7;
+  });
+
+  const suggestions = [
+    {name: 'ChatGPT Plus', amount: 20, curr: 'USD', cat: 'texto', icon: '💬'},
+    {name: 'Claude Pro', amount: 20, curr: 'USD', cat: 'texto', icon: '🧠'},
+    {name: 'Gemini Advanced', amount: 99.9, curr: 'BRL', cat: 'texto', icon: '✨'},
+    {name: 'Midjourney', amount: 10, curr: 'USD', cat: 'imagem', icon: '🎨'},
+    {name: 'Cursor Pro', amount: 20, curr: 'USD', cat: 'coding', icon: '💻'},
+    {name: 'Hostinger Plan', amount: 12.9, curr: 'BRL', cat: 'prod', icon: '🌐'}
+  ];
 
   return `
-    <div class="hero-card fade-up" style="background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%); border-color: #3b82f633">
-      <div class="hero-label">Gasto Mensal Estimado (IA)</div>
-      <div class="hero-amount pos" style="color: #60a5fa">${fmtHero(totalBRL)}</div>
-      <div class="hero-sub">Investimento em inteligência e produtividade</div>
-    </div>
-    <div class="card fade-up">
-      <div class="card-title">Minhas Assinaturas</div>
-      <div class="tx-list">
-        ${list.map(s => {
-          const catIcons = {texto: '💬', imagem: '🎨', coding: '💻', prod: '⚡', outros: '🤖'};
-          const icon = catIcons[s.category] || '🤖';
-          const next = s.nextDate ? new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR') : '---';
-          const isUSD = s.currency === 'USD';
-          const amountStr = new Intl.NumberFormat('pt-BR', {minimumFractionDigits: 2}).format(s.amount || 0);
-          return `
-            <div class="tx-item" onclick="editAI('${s.id}')" style="border-left: 3px solid #3b82f666">
-              <div class="tx-icon" style="background: #3b82f622">${icon}</div>
-              <div class="tx-info">
-                <div class="tx-desc">${esc(s.name)} <span style="font-size: .65rem; opacity: .6; background: var(--surface3); padding: 1px 5px; border-radius: 4px">${esc(s.cycle)}</span></div>
-                <div class="tx-meta">
-                  <span>Renova em: ${next}</span>
-                  ${s.roi ? `<span style="font-style: italic">· ${esc(s.roi)}</span>` : ''}
-                </div>
-              </div>
-              <div style="text-align: right">
-                <div class="tx-amount income" style="color: #60a5fa">${isUSD ? 'US$' : 'R$'}${amountStr}</div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+    <div class="hero-card fade-up" style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-color: #4f46e544; padding: 20px">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <div>
+          <div class="hero-label" style="color: #a5b4fc">Gasto Mensal Total</div>
+          <div class="hero-amount pos" style="color: #fff; font-size: 2.2rem">${fmtHero(totalBRL)}</div>
+        </div>
+        <div style="text-align: right">
+          <div class="hero-label" style="color: #a5b4fc">Em Dólar</div>
+          <div style="color: #fff; font-weight: 700; font-size: 1.1rem">US$ ${totalUSD.toFixed(2)}</div>
+        </div>
+      </div>
+      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ffffff15; display: flex; gap: 15px">
+        <div style="flex: 1">
+          <div style="font-size: .65rem; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.5px">Serviços Ativos</div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: #fff">${aiServices.length}</div>
+        </div>
+        <div style="flex: 1">
+          <div style="font-size: .65rem; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.5px">Cotação Ref.</div>
+          <div style="font-size: 1.1rem; font-weight: 800; color: #fff">R$ ${usdRate.toFixed(2)}</div>
+        </div>
       </div>
     </div>
+
+    ${renewalsSoon.length ? `
+      <div class="card fade-up" style="background: #fef2f211; border: 1px solid #ef444433">
+        <div class="card-title" style="color: #ef4444; font-size: .85rem">⚠️ Atenção: Renovações Próximas</div>
+        <div class="tx-list">
+          ${renewalsSoon.map(s => `
+            <div class="tx-item" onclick="editAI('${s.id}')">
+              <div class="tx-icon" style="background: #ef444422">📅</div>
+              <div class="tx-info">
+                <div class="tx-desc" style="color: #ef4444">${esc(s.name)}</div>
+                <div class="tx-meta">Vence em ${new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+              </div>
+              <div class="tx-amount" style="color: #ef4444">${s.currency === 'USD' ? 'US$' : 'R$'}${s.amount}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <div class="card fade-up">
+      <div class="card-title">Atalhos Rápidos</div>
+      <div style="display: flex; overflow-x: auto; gap: 10px; padding-bottom: 5px; scrollbar-width: none">
+        ${suggestions.map(s => `
+          <div onclick="quickAddAI('${s.name}', ${s.amount}, '${s.curr}', '${s.cat}')" style="flex-shrink: 0; background: var(--surface2); border: 1px solid var(--border); padding: 10px 15px; border-radius: 12px; text-align: center; cursor: pointer">
+            <div style="font-size: 1.4rem; margin-bottom: 4px">${s.icon}</div>
+            <div style="font-size: .75rem; font-weight: 700">${s.name}</div>
+            <div style="font-size: .65rem; color: var(--text3)">${s.curr} ${s.amount}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card fade-up">
+      <div class="card-title">Minhas Assinaturas</div>
+      ${!aiServices.length ? `
+        <div class="empty-state">
+          <div class="e-icon">🤖</div>
+          <p>Ainda não há serviços salvos.</p>
+        </div>
+      ` : `
+        <div class="tx-list">
+          ${[...aiServices].sort((a,b) => new Date(a.nextDate) - new Date(b.nextDate)).map(s => {
+            const catIcons = {texto: '💬', imagem: '🎨', coding: '💻', prod: '⚡', outros: '🤖'};
+            const statusColors = {sim: '#10b981', talvez: '#f59e0b', nao: '#ef4444'};
+            const statusLabels = {sim: 'Manter', talvez: 'Avaliar', nao: 'Cancelar'};
+            return `
+              <div class="tx-item" onclick="editAI('${s.id}')">
+                <div class="tx-icon" style="background: var(--surface3)">${catIcons[s.category]||'🤖'}</div>
+                <div class="tx-info">
+                  <div class="tx-desc">${esc(s.name)} <span style="font-size: .65rem; color: ${statusColors[s.willRenew||'sim']}; font-weight: 800; margin-left: 5px">${statusLabels[s.willRenew||'sim']}</span></div>
+                  <div class="tx-meta">
+                    Próxima: ${s.nextDate ? new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}
+                    ${s.roi ? ` · <span style="color: var(--text2)">${esc(s.roi)}</span>` : ''}
+                  </div>
+                </div>
+                <div style="text-align: right">
+                  <div class="tx-amount income" style="color: #60a5fa">${s.currency === 'USD' ? 'US$' : 'R$'}${parseFloat(s.amount).toFixed(2)}</div>
+                  <div style="font-size: .6rem; color: var(--text3)">${esc(s.cycle)}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
   `;
+}
+
+function quickAddAI(name, amount, curr, cat) {
+  openAIModal();
+  document.getElementById('aiName').value = name;
+  document.getElementById('aiAmount').value = amount;
+  document.getElementById('aiCurrency').value = curr;
+  document.getElementById('aiCat').value = cat;
 }
 
 function openAIModal() {
@@ -4615,6 +4696,7 @@ function openAIModal() {
   document.getElementById('aiCurrency').value = 'BRL';
   document.getElementById('aiCycle').value = 'mensal';
   document.getElementById('aiNextDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('aiWillRenew').value = 'sim';
   document.getElementById('aiCat').value = 'texto';
   document.getElementById('aiROI').value = '';
   document.getElementById('btnDeleteAI').style.display = 'none';
@@ -4631,6 +4713,7 @@ function editAI(id) {
   document.getElementById('aiCurrency').value = s.currency || 'BRL';
   document.getElementById('aiCycle').value = s.cycle || 'mensal';
   document.getElementById('aiNextDate').value = s.nextDate || '';
+  document.getElementById('aiWillRenew').value = s.willRenew || 'sim';
   document.getElementById('aiCat').value = s.category || 'texto';
   document.getElementById('aiROI').value = s.roi || '';
   document.getElementById('btnDeleteAI').style.display = '';
@@ -4652,6 +4735,7 @@ async function saveAI() {
     currency: document.getElementById('aiCurrency').value,
     cycle: document.getElementById('aiCycle').value,
     nextDate: document.getElementById('aiNextDate').value,
+    willRenew: document.getElementById('aiWillRenew').value,
     category: document.getElementById('aiCat').value,
     roi: document.getElementById('aiROI').value,
     userId: currentUid,
