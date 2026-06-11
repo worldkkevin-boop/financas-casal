@@ -2,14 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Mapa usuário → casal. Cada um lê/escreve só o próprio (login Google).
+    // Regras para Usuários
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Cada casal é um documento. No máximo 2 membros (vocês dois).
+    // Regras para Casais (Finanças compartilhadas)
     match /couples/{coupleId} {
-      // ... (existing rules)
       allow create: if request.auth != null;
       allow read, update, delete: if request.auth != null && (
         !('members' in resource.data) ||
@@ -18,7 +17,7 @@ service cloud.firestore {
       );
     }
 
-    // Gerenciamento de IA: Totalmente privado, apenas o dono do dado acessa.
+    // ABA EXCLUSIVA IA: Só você acessa seus serviços
     match /ai_management/{docId} {
       allow read, write: if request.auth != null && (
         (resource == null && request.resource.data.userId == request.auth.uid) || 
