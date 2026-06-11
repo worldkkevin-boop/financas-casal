@@ -4531,15 +4531,23 @@ let aiUnsubscriber = null;
 let editingAIId = null;
 
 async function subscribeAI() {
-  if (!USE_FIREBASE || !db || !currentUid) return;
+  if (!USE_FIREBASE || !db || !currentUid) {
+    console.log('Subscribe AI abortado: Firebase/DB/UID ausentes', {USE_FIREBASE, currentUid});
+    return;
+  }
   if (aiUnsubscriber) aiUnsubscriber();
+  console.log('Iniciando sub na coleção ai_management para UID:', currentUid);
   aiUnsubscriber = db.collection('ai_management')
     .where('userId', '==', currentUid)
     .onSnapshot(snap => {
+      console.log('AI Data recebida:', snap.size, 'documentos');
       aiServices = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
       if (activeTab === 'ai') renderCurrentTab();
     }, err => {
-      console.error('AI Subscribe error:', err);
+      console.error('Erro detalhado no Subscribe IA:', err);
+      if (err.code === 'permission-denied') {
+        showToast('Erro de permissão no Firebase (IA)', 'error');
+      }
     });
 }
 
@@ -4651,6 +4659,7 @@ async function saveAI() {
   };
 
   try {
+    console.log('Tentando salvar IA:', data);
     if (editingAIId) {
       await db.collection('ai_management').doc(editingAIId).update(data);
       showToast('Serviço atualizado', 'success');
@@ -4660,8 +4669,8 @@ async function saveAI() {
     }
     closeAIModal();
   } catch (e) {
-    console.error(e);
-    showToast('Erro ao salvar no Firebase', 'error');
+    console.error('Erro detalhado ao salvar IA:', e);
+    showToast('Erro ao salvar no Firebase: ' + (e.message || 'Erro desconhecido'), 'error');
   }
 }
 

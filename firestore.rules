@@ -20,8 +20,10 @@ service cloud.firestore {
 
     // Gerenciamento de IA: Totalmente privado, apenas o dono do dado acessa.
     match /ai_management/{docId} {
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow read, write: if request.auth != null && (
+        (resource == null && request.resource.data.userId == request.auth.uid) || 
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
     }
   }
 }
