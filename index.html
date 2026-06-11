@@ -363,6 +363,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
 .modal-overlay.open .modal{transform:translateY(0)}
 .modal-handle{width:32px;height:4px;background:var(--border3);border-radius:2px;margin:0 auto 16px}
 .modal-title{font-family:var(--font-d);font-size:1.02rem;font-weight:700;margin-bottom:16px}
+/* DICA DE ABA (1ª vez) */
+.tab-intro-icon{width:58px;height:58px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:1.7rem;margin:0 auto 12px}
+#tabIntroBody ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
+#tabIntroBody li{font-size:.86rem;color:var(--text2)}
 
 /* FAB */
 .fab{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));right:calc(16px + env(safe-area-inset-right));z-index:50;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;cursor:pointer;color:#fff;font-size:1.4rem;box-shadow:0 8px 28px #6c8eff44;display:flex;align-items:center;justify-content:center;transition:transform .15s,box-shadow .15s}
@@ -717,6 +721,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   </div>
 </div></div>
 
+<!-- DICA DE ABA (explica cada aba na 1ª vez que é aberta neste aparelho) -->
+<div class="modal-overlay" id="tabIntroModal"><div class="modal">
+  <div class="modal-handle"></div>
+  <div class="tab-intro-icon" id="tabIntroIcon">📊</div>
+  <div class="modal-title" id="tabIntroTitle" style="text-align:center;margin-bottom:8px"></div>
+  <div id="tabIntroBody" style="font-size:.9rem;line-height:1.55;color:var(--text2)"></div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:.78rem;color:var(--text3);cursor:pointer">
+    <input type="checkbox" id="tabIntroSkipAll"/> Não mostrar as dicas das outras abas
+  </label>
+  <div class="btn-row" style="margin-top:12px">
+    <button class="btn-primary" style="flex:1" onclick="closeTabIntro()">Entendi 👍</button>
+  </div>
+</div></div>
+
 <!-- CONFIRM MODAL (substitui confirm) -->
 <div class="modal-overlay" id="confirmModal2"><div class="modal">
   <div class="modal-handle"></div>
@@ -877,7 +895,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v32'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v33'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1298,6 +1316,7 @@ function initApp() {
   applyMode();
   updateAvatars(); updateMonthLabel();
   renderTab('dashboard'); updateBudgetBadge();
+  maybeTabIntro('dashboard');
   if (USE_FIREBASE&&state.coupleId) subscribeFirebase();
   checkRecurring();
 }
@@ -1336,6 +1355,7 @@ function applyTheme(t) {
 function showTab(tab,el) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active'); activeTab=tab; renderTab(tab);
+  maybeTabIntro(tab);
   try { el.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'}); } catch(e){}
   if(tab==='goals') document.getElementById('fabBtn').onclick=openGoalModal;
   else if(tab==='ai') document.getElementById('fabBtn').onclick=openAIModal;
@@ -1361,6 +1381,52 @@ function renderTab(tab) {
   else if (tab==='annual') { el.innerHTML=renderAnnual(); initAnnualChart(); }
   else if (tab==='ai') el.innerHTML=renderAI();
   else if (tab==='settings') el.innerHTML=renderSettings();
+}
+
+// ── DICAS DE ABA: na 1ª vez que cada aba é aberta neste aparelho, explica o que ela faz ──
+const TAB_INTRO_KEY='nd_seen_tab_intros';
+const TAB_INTROS={
+  dashboard:{icon:'📊',title:'Visão Geral',lead:'Seu resumo do mês num lugar só: saldo, quanto entrou e saiu e pra onde o dinheiro foi.',can:['Ver o saldo e os gastos por categoria do mês','Trocar de mês nas setas lá em cima','Personalizar os blocos no botão ✏️ (Editar tela)']},
+  transactions:{icon:'💳',title:'Lançamentos',lead:'A lista de tudo que entrou e saiu — é aqui que o dia a dia das contas vive.',can:['Adicionar um gasto ou receita no botão +','Filtrar por pessoa, categoria ou cartão','Editar ou apagar tocando num lançamento']},
+  budget:{icon:'🎯',title:'Orçamento',lead:'Defina um limite de gasto por categoria e acompanhe quanto já foi usado no mês.',can:['Definir um limite tocando numa categoria','Ver quanto sobra — ou se estourou o limite','Aplicar um plano que distribui os limites de uma vez']},
+  goals:{icon:'💰',title:'Metas',lead:'Caixinhas pra juntar dinheiro com objetivo: viagem, reserva, presente…',can:['Criar uma meta no botão +','Depositar ou tirar de uma caixinha','Acompanhar o quanto falta pra cada objetivo']},
+  portfolio:{icon:'📈',title:'Carteira',lead:'Onde o dinheiro de vocês está investido — ações, fundos, cripto, o que tiverem.',can:['Cadastrar os ativos e quanto têm de cada','Ver o total investido e a divisão da carteira','Atualizar os valores quando quiser']},
+  dream:{icon:'✈️',title:'Sonho',lead:'Um objetivo grande do casal, com missões e hábitos pra chegar lá juntos.',can:['Escolher (ou trocar) o sonho de vocês','Cumprir missões e manter hábitos diários (com streak 🔥)','Acompanhar o quanto já guardaram rumo ao sonho']},
+  annual:{icon:'📅',title:'Ano',lead:'A visão dos 12 meses: dá pra enxergar a tendência e comparar mês a mês.',can:['Ver entradas e saídas de cada mês do ano','Comparar meses e achar os mais caros','Entender a evolução do saldo ao longo do ano']},
+  ai:{icon:'🤖',title:'IA Studio',lead:'Ferramentas com inteligência artificial pra te ajudar a entender as finanças.',can:['Pedir análises e resumos das suas contas','Tirar dúvidas sobre os números do casal']},
+  settings:{icon:'⚙️',title:'Config',lead:'Onde você ajusta o app do jeito de vocês: perfis, segurança e sincronização.',can:['Editar nomes, rendas e o dia do pagamento','Convidar o parceiro(a) e sincronizar os dados','Ativar PIN, exportar backup ou atualizar o app']}
+};
+function getSeenIntros(){ try{ return JSON.parse(localStorage.getItem(TAB_INTRO_KEY)||'[]'); }catch(e){ return []; } }
+function markIntroSeen(tab){ const s=getSeenIntros(); if(!s.includes(tab)){ s.push(tab); localStorage.setItem(TAB_INTRO_KEY,JSON.stringify(s)); } }
+let _introTab=null;
+function maybeTabIntro(tab){
+  if(!TAB_INTROS[tab]) return;
+  if(localStorage.getItem(TAB_INTRO_KEY+'_off')==='1') return;
+  if(getSeenIntros().includes(tab)) return;
+  if(document.getElementById('tabIntroModal').classList.contains('open')) return; // não empilha
+  setTimeout(()=>showTabIntro(tab),420);
+}
+function showTabIntro(tab){
+  const info=TAB_INTROS[tab]; if(!info) return;
+  _introTab=tab;
+  document.getElementById('tabIntroIcon').textContent=info.icon;
+  document.getElementById('tabIntroTitle').textContent=info.title;
+  document.getElementById('tabIntroBody').innerHTML='<div>'+esc(info.lead)+'</div>'
+    +'<div style="margin-top:12px;font-size:.72rem;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">Dá pra</div>'
+    +'<ul>'+info.can.map(c=>'<li>'+esc(c)+'</li>').join('')+'</ul>';
+  document.getElementById('tabIntroSkipAll').checked=false;
+  document.getElementById('tabIntroModal').classList.add('open');
+}
+function closeTabIntro(){
+  if(_introTab) markIntroSeen(_introTab);
+  if(document.getElementById('tabIntroSkipAll').checked) localStorage.setItem(TAB_INTRO_KEY+'_off','1');
+  document.getElementById('tabIntroModal').classList.remove('open');
+  _introTab=null;
+}
+function resetTabIntros(){
+  localStorage.removeItem(TAB_INTRO_KEY); localStorage.removeItem(TAB_INTRO_KEY+'_off');
+  showToast('Dicas reativadas — abra as abas pra rever 💡','success');
+  maybeTabIntro(activeTab);
 }
 
 // HELPERS
@@ -3874,6 +3940,7 @@ function renderSettings() {
       <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)"/>
       <button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="document.getElementById('importFile').click()">⬆ Import</button>
     </div>
+    <div class="setting-row"><div><div class="setting-label">Rever dicas das abas 💡</div><div class="setting-sub">Mostra de novo a explicação ao abrir cada aba</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="resetTabIntros()">Reativar</button></div>
     <div class="setting-row"><div><div class="setting-label">Atualizar o app</div><div class="setting-sub">Limpa o cache e baixa a versão mais nova</div></div><button class="btn-secondary" style="width:auto;padding:7px 13px" onclick="forceUpdate()">🔄 Atualizar</button></div>
     <div class="setting-row"><div><div class="setting-label" style="color:var(--red)">Apagar todos os dados</div><div class="setting-sub">Irreversível</div></div><button class="btn-danger" onclick="clearData()">Apagar</button></div>
   </div>
