@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v28'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v29'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1430,14 +1430,8 @@ function showToast(msg,type='info',duration=3500) {
   setTimeout(()=>{t.style.animation='toastIn .28s ease reverse';setTimeout(()=>t.remove(),250);},duration);
 }
 
-// RECURRING CHECK
-function checkRecurring() {
-  const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
-  if (!recurring.length) return;
-  const thisMonthDescs=new Set(getMonthTx().map(t=>t.description));
-  const missing=recurring.filter(t=>!thisMonthDescs.has(t.description));
-  if (missing.length) showToast('🔁 '+missing.length+' recorrente(s) para relançar este mês — acesse Lançamentos','info',6000);
-}
+// RECURRING CHECK — sem notificação (os pendentes aparecem com botão na lista de Lançamentos)
+function checkRecurring() {}
 
 // BUDGET BADGE
 function updateBudgetBadge() {
@@ -1929,12 +1923,15 @@ function renderTxListInner(){
 
   const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
-  const missRec=recurring.filter(t=>!thisDescs.has(t.description));
-  const recBanner=missRec.length?`<div style="background:#a78bfa14;border:1px solid #a78bfa33;border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-    <span>🔁</span>
-    <div style="flex:1"><div style="font-size:.8rem;font-weight:600;color:var(--accent2)">Recorrentes pendentes</div>
-    <div style="font-size:.72rem;color:var(--text3)">${missRec.slice(0,3).map(t=>t.description).join(', ')}</div></div>
-    <button class="btn-ghost" style="font-size:.76rem;color:var(--accent2)" onclick="relançarRecorrentes()">+ Lançar</button>
+  const _seenRec=new Set();
+  const missRec=recurring.filter(t=>!thisDescs.has(t.description)&&!_seenRec.has(t.description)&&_seenRec.add(t.description));
+  const recBanner=missRec.length?`<div class="card" style="padding:11px 13px;margin-bottom:10px;border:1px solid #a78bfa33;background:#a78bfa0d">
+    <div style="font-size:.74rem;font-weight:700;color:var(--accent2);margin-bottom:6px">🔁 Recorrentes deste mês</div>
+    ${missRec.map(t=>{const isInc=t.type==='income';return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--border)">'
+      +'<div style="min-width:0"><div style="font-size:.83rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(t.description)+'</div><div style="font-size:.7rem;color:'+(isInc?'var(--green)':'var(--text3)')+'">'+(isInc?'+':'-')+fmt(t.amount)+'</div></div>'
+      +'<button class="tx-pay '+(isInc?'ok':'pend')+'" style="font-size:.72rem;padding:5px 11px" onclick="relançarUm(\''+t.id+'\')">'+(isInc?'💰 Receber':'✓ Lançar')+'</button>'
+    +'</div>';}).join('')}
+    ${missRec.length>1?'<button class="btn-ghost" style="width:100%;margin-top:6px;font-size:.72rem;color:var(--accent2)" onclick="relançarRecorrentes()">lançar todos</button>':''}
   </div>`:'';
 
   const countLine=(txs.length!==allTxs.length)?'<div style="font-size:.72rem;color:var(--text3);margin-bottom:8px">'+txs.length+' de '+allTxs.length+' · Gastos: <span style="color:var(--red)">'+fmt(totalF)+'</span></div>':'';
@@ -1989,6 +1986,21 @@ function renderTxItem(t) {
 }
 
 function clearTxFilter() { txFilter={search:'',person:'all',category:'',card:''}; renderCurrentTab(); }
+// Lança UM recorrente (template t) no mês atual. Salário cai no dia do pagamento; o resto mantém o dia.
+function relançarUm(id){
+  const t=state.transactions.find(x=>x.id===id);
+  if(!t) return;
+  if(getMonthTx().some(x=>x.description===t.description)){ showToast('Já está neste mês 👍','info'); renderCurrentTab(); return; }
+  const lastDay=new Date(currentYear,currentMonth+1,0).getDate();
+  const origDay=parseInt((t.date||'').slice(8,10))||15;
+  const wantDay=t.category==='salario'?(state.payday||20):origDay;
+  const day=Math.min(wantDay,lastDay);
+  const date=currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  state.transactions.push({...t, id:uid(), date, _autoSalary:false, createdAt:new Date().toISOString()});
+  saveState();
+  showToast((t.type==='income'?'💰 ':'✓ ')+t.description+(t.type==='income'?' recebido!':' lançado!'),'success');
+  renderCurrentTab(); updateBudgetBadge();
+}
 function relançarRecorrentes() {
   const recurring=state.transactions.filter(t=>t.recurring&&!t._autoSalary);
   const thisDescs=new Set(getMonthTx().map(t=>t.description));
