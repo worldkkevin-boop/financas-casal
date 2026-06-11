@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v29'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v30'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1706,11 +1706,7 @@ function renderDashboard() {
   const monthKey=currentYear+'-'+(currentMonth+1);
   let toPay=0;
   Object.values(state.bills||{}).forEach(arr=>(arr||[]).forEach(b=>{ if((b.amount||0)>0 && !((b.paidMonths||[]).includes(monthKey))) toPay+=b.amount; }));
-  const pago=exp.filter(t=>txPaid(t)).reduce((s,t)=>s+t.amount,0);            // já saiu da conta (status pago)
-  const pendExp=exp.filter(t=>!txPaid(t)).reduce((s,t)=>s+t.amount,0);        // despesas ainda pendentes
-  const pendCred=exp.filter(t=>!txPaid(t)&&t.payment==='credito').reduce((s,t)=>s+t.amount,0); // dessas, no crédito
-  const pendOther=Math.max(0,pendExp-pendCred);
-  const aPagar=pendExp+toPay;                 // pendentes + contas a pagar
+  const credExp=exp.filter(t=>t.payment==='credito').reduce((s,t)=>s+t.amount,0); // gasto no crédito (só p/ a nota — a fatura mora no card Reserva)
   const cards=state.cards||[];
   const dreamPct = state.dream ? (()=>{const t=(state.dream.missions||[]).length,dn=(state.dream.missions||[]).filter(m=>m.done).length;return t?Math.round(dn/t*100):0;})() : 0;
   const dreamUsdPct = (state.dream&&state.dream.targetUSD>0)?Math.min(100,(state.dream.savedUSD||0)/state.dream.targetUSD*100):0;
@@ -1738,10 +1734,9 @@ function renderDashboard() {
     <div class="card-title">Resumo de ${MONTHS_FULL[currentMonth]}</div>
     <div class="dash-grid">
       <div class="dash-tile"><div class="dt-lbl">Receitas</div><div class="dt-val" style="color:var(--green)">${fmt(totalInc)}${trendArrow(totalInc,prevInc)}</div></div>
-      <div class="dash-tile"><div class="dt-lbl">Despesas</div><div class="dt-val" style="color:var(--red)">${fmt(totalExp)}${trendArrow(totalExp,prevExp)}</div></div>
-      <div class="dash-tile"><div class="dt-lbl">💸 Pago <span style="opacity:.6">· já saiu</span></div><div class="dt-val">${fmt(pago)}</div></div>
-      <div class="dash-tile"><div class="dt-lbl">🕓 A pagar <span style="opacity:.6">· falta sair</span></div><div class="dt-val" style="color:${aPagar>0?'var(--orange)':'var(--text2)'}">${fmt(aPagar)}</div>${aPagar>0?`<div style="font-size:.62rem;color:var(--text3);margin-top:2px;line-height:1.2">${[pendCred>0?fmt(pendCred)+' crédito':'',pendOther>0?fmt(pendOther)+' pendentes':'',toPay>0?fmt(toPay)+' contas':''].filter(Boolean).join(' + ')}</div>`:(totalExp>0?`<div style="font-size:.62rem;color:var(--green);margin-top:2px;line-height:1.2">✅ tudo pago</div>`:'')}</div>
-      <div class="dash-tile" style="grid-column:1/-1"><div class="dt-lbl">Saldo do mês</div><div class="dt-val" style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmt(balance)}</div></div>
+      <div class="dash-tile"><div class="dt-lbl">Despesas</div><div class="dt-val" style="color:var(--red)">${fmt(totalExp)}${trendArrow(totalExp,prevExp)}</div>${credExp>0?`<div style="font-size:.62rem;color:var(--text3);margin-top:2px;line-height:1.2">↳ ${fmt(credExp)} no crédito <span style="opacity:.7">(fatura)</span></div>`:''}</div>
+      <div class="dash-tile"><div class="dt-lbl">Saldo do mês</div><div class="dt-val" style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmt(balance)}</div></div>
+      <div class="dash-tile"><div class="dt-lbl">Contas a pagar</div><div class="dt-val" style="color:${toPay>0?'var(--orange)':'var(--text2)'}">${fmt(toPay)}</div></div>
     </div>
   </div>`;
 
