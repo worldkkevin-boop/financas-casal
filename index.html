@@ -831,7 +831,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v27'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v28'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1607,12 +1607,21 @@ function renderReserveCard(){
   const pct=fat>0?Math.min(100,res/fat*100):(res>0?100:0);
   const barColor=covered?'var(--green)':'var(--orange)';
   const rendaColor=pctRenda>40?'var(--red)':pctRenda>25?'var(--orange)':'var(--text3)';
+  // Próxima fatura (mês seguinte) — mostra adiantado quando a do mês já está paga, pra ir guardando antes do ciclo virar.
+  let nm=currentMonth+1, ny=currentYear; if(nm>11){nm=0;ny++;}
+  const fatProx=(state.cards||[]).reduce((s,c)=>s+cardInvoiceTotal(c,nm,ny),0);
+  const proxPaga=state.cardReserve.paid.includes(nm+'-'+ny);
+  const dueDay=(((state.cards||[]).find(c=>c.dueDay)||{}).dueDay)||25;
+  const proxHtml=(paid && fatProx>0 && !proxPaga)
+    ? '<div style="margin-top:9px;padding:8px 11px;background:var(--surface2);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center"><div style="font-size:.72rem;color:var(--text3)">📅 Próxima · <strong style="color:var(--text2)">'+MONTHS_FULL[nm]+'</strong> · vence '+String(dueDay).padStart(2,'0')+'/'+String(nm+1).padStart(2,'0')+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:.92rem;color:var(--orange)">'+fmt(fatProx)+'</div></div>'
+    : '';
   return '<div class="card fade-up" style="border-color:#ffd16633">'
     +'<div class="card-title">🐷 Reserva da fatura</div>'
     +'<div style="display:flex;justify-content:space-between;align-items:baseline"><div><div style="font-size:.7rem;color:var(--text3)">Reservado</div><div style="font-family:var(--font-d);font-weight:800;font-size:1.3rem;color:var(--cyan)">'+fmt(res)+'</div></div>'
     +'<div style="text-align:right"><div style="font-size:.7rem;color:var(--text3)">Fatura '+MONTHS[currentMonth]+(paid?' (paga)':'')+'</div><div style="font-family:var(--font-d);font-weight:700;font-size:1rem">'+fmt(fatBruta)+'</div></div></div>'
     +(fat>0?'<div class="budget-bar" style="margin-top:9px"><div class="budget-fill" style="width:'+pct.toFixed(0)+'%;background:'+barColor+'"></div></div>':'')
     +statusHtml
+    +proxHtml
     +(income>0?'<div style="font-size:.72rem;color:'+rendaColor+';text-align:center;margin-top:7px">Sua fatura é <strong>'+pctRenda.toFixed(0)+'%</strong> da renda do casal'+(pctRenda>40?' — pesado, segura o crédito!':pctRenda>25?' — fique de olho':' — saudável 👍')+'</div>':'')
     +'<div style="display:flex;gap:8px;margin-top:11px">'
     +'<button class="btn-primary" style="flex:1" onclick="openReserveAdd()">🐷 Guardar na reserva</button>'
