@@ -77,7 +77,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
    - **Saldo corrente** por linha (`→ R$ X`, só sem filtro).
    - Botão **marcar pago/pendente** por lançamento (crédito segue a fatura).
    - Banner **"Recorrentes deste mês"** com botão **Receber/Lançar** por item (salário NÃO entra aqui — tem tratamento próprio).
-3. **Orçamento** (`budget`) — limites **fixos e independentes** por categoria. "Aplicar plano" é a única coisa que distribui.
+3. **Orçamento** (`budget`) — limites por categoria com **slider de arrastar** (`budgetSliderInput` ao vivo / `budgetSliderCommit` ao soltar; arrastar até 0 remove). Botão **⚖️ Redistribuir** (`redistributeBudgets`) reequilibra proporcionalmente pra somar salário−poupança. Ao **remover** um limite, oferece redistribuir o que sobrou entre as outras. "Aplicar plano" (`applyPlan`) cria os limites iniciais pelo plano de salário.
 4. **Metas / Caixinhas** (`goals`) — aportes pra objetivos.
 5. **Carteira** (`portfolio`) — investimentos (ações/FII/RF/dólar).
 6. **Sonho** (`dream`) — escolher um sonho (Sonho Americano ✈️, Casa 🏡/🏠, **Carro 🚗**, **Moto 🏍️**): intro, missões, hábitos diários com streak, "quanto custa" (`DREAM_COSTS`), card pra compartilhar. Sonhos em `DREAMS`/`DREAM_CHOICES`; carro e moto reusam `DREAM_VEICULO_PHASES/MISSIONS`.

@@ -2574,7 +2574,9 @@ function renderBudget() {
     const limit=b?b.limit:0;
     const pct=limit>0?Math.min(120,spent/limit*100):0;
     const fillClass=pct>100?'over':pct>80?'warn':'ok';
-    return '<div class="budget-group"><div class="budget-item" onclick="openBudgetModal(\''+catId+'\')"><div class="budget-header"><div class="budget-name">'+cat.icon+' '+cat.name+'</div><div class="budget-vals">'+(limit>0?fmt(spent)+' / '+fmt(limit):'Sem limite — '+fmt(spent)+' gasto')+'</div></div>'+(limit>0?'<div class="budget-bar"><div class="budget-fill '+fillClass+'" style="width:'+pct.toFixed(1)+'%"></div></div>':'')+'</div>'+renderBills(catId)+'</div>';
+    const smax=Math.max(Math.ceil(limit*2.5/50)*50,2000); // teto do slider (com folga; o modal aceita qualquer valor)
+    const slider=limit>0?'<input type="range" min="0" max="'+smax+'" step="50" value="'+limit+'" id="bs_'+catId+'" class="budget-slider" style="width:100%;accent-color:var(--accent);margin-top:9px;cursor:pointer" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()" oninput="budgetSliderInput(\''+catId+'\',this.value,'+spent+')" onchange="budgetSliderCommit(\''+catId+'\',this.value)">':'';
+    return '<div class="budget-group"><div class="budget-item" onclick="openBudgetModal(\''+catId+'\')"><div class="budget-header"><div class="budget-name">'+cat.icon+' '+cat.name+'</div><div class="budget-vals" id="bv_'+catId+'">'+(limit>0?fmt(spent)+' / '+fmt(limit):'Sem limite — '+fmt(spent)+' gasto')+'</div></div>'+(limit>0?'<div class="budget-bar"><div class="budget-fill '+fillClass+'" id="bf_'+catId+'" style="width:'+pct.toFixed(1)+'%"></div></div>':'')+slider+'</div>'+renderBills(catId)+'</div>';
   }).join('');
 
   const unusedCats=CATS_EXPENSE.filter(c=>!allSpentCats.includes(c.id) && !catHidden(c.id));
@@ -2590,7 +2592,8 @@ function renderBudget() {
   ${renderSavingsCard()}
   <div class="card">
     <div class="card-title">🎯 Orçamento — ${MONTHS_FULL[currentMonth]}</div>
-    ${totalLimits>0?`<div style="font-size:.74rem;color:var(--text3);margin:-7px 0 11px">Soma dos limites: <b style="color:${planIncome&&totalLimits>planIncome?'var(--orange)':'var(--text2)'}">${fmt(totalLimits)}</b>${planIncome>0?' · salário '+fmt(planIncome):''}</div>`:''}
+    ${totalLimits>0?`<div style="font-size:.74rem;color:var(--text3);margin:-7px 0 ${budgetedCats.length>=2?'8px':'11px'}">Soma dos limites: <b style="color:${planIncome&&totalLimits>planIncome?'var(--orange)':'var(--text2)'}">${fmt(totalLimits)}</b>${planIncome>0?' · salário '+fmt(planIncome):''}</div>`:''}
+    ${budgetedCats.length>=2?`<button class="btn-ghost" style="width:100%;margin-bottom:9px;font-size:.78rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px;color:var(--accent)" onclick="redistributeBudgets()">⚖️ Redistribuir limites proporcionalmente</button><div style="font-size:.66rem;color:var(--text3);margin:-4px 0 10px;text-align:center">👆 Arraste a barrinha de cada categoria pra ajustar o limite</div>`:''}
     ${rows||'<div class="empty-state" style="padding:18px"><p>Nenhum limite definido ainda.</p></div>'}
   </div>
   <div class="card">
@@ -2623,10 +2626,60 @@ function saveBudget() {
   renderCurrentTab(); updateBudgetBadge();
 }
 function removeBudget() {
-  if (state.budgets) delete state.budgets[editingBudgetCatId];
+  const catId=editingBudgetCatId;
+  const freed=((state.budgets||{})[catId]||{}).limit||0;
+  if (state.budgets) delete state.budgets[catId];
   saveState(); closeBudgetModal();
-  showToast('Limite removido','info');
   renderCurrentTab(); updateBudgetBadge();
+  // Oferece redistribuir o que sobrou entre as outras categorias (mantém o total do orçamento).
+  const others=Object.keys(state.budgets||{}).filter(c=>state.budgets[c]&&state.budgets[c].limit>0&&!catHidden(c));
+  if(freed>0 && others.length){
+    openConfirm('Limite removido. Redistribuir os '+fmt(freed)+' que sobraram entre as outras '+others.length+' categoria(s), por proporção?', ()=>{
+      const curTotal=others.reduce((s,c)=>s+state.budgets[c].limit,0)||1;
+      let distributed=0;
+      others.forEach((c,i)=>{
+        let add; if(i===others.length-1) add=freed-distributed; else { add=Math.round(freed*(state.budgets[c].limit/curTotal)); distributed+=add; }
+        state.budgets[c]={limit:state.budgets[c].limit+Math.max(0,add)};
+      });
+      saveState(); updateBudgetBadge(); renderCurrentTab(); showToast('⚖️ Redistribuído entre as outras!','success');
+    }, {okLabel:'Redistribuir'});
+  } else {
+    showToast('Limite removido','info');
+  }
+}
+// Slider: atualização AO VIVO (sem re-render) enquanto arrasta — texto e barra.
+function budgetSliderInput(catId, val, spent){
+  val=+val;
+  const bv=document.getElementById('bv_'+catId);
+  const bf=document.getElementById('bf_'+catId);
+  if(bv) bv.textContent=fmt(spent)+' / '+fmt(val);
+  if(bf){ const pct=val>0?Math.min(120,spent/val*100):0; bf.style.width=pct.toFixed(1)+'%'; bf.className='budget-fill '+(pct>100?'over':pct>80?'warn':'ok'); }
+}
+// Slider: ao soltar, grava o limite (arrastar até 0 remove o limite).
+function budgetSliderCommit(catId, val){
+  val=Math.round(+val);
+  if(!state.budgets) state.budgets={};
+  if(val<=0) delete state.budgets[catId];
+  else state.budgets[catId]={limit:val};
+  saveState(); updateBudgetBadge(); renderCurrentTab();
+}
+// Reequilibra todos os limites proporcionalmente pra somarem o orçamento de gastos (salário − poupança), ou o total atual.
+function redistributeBudgets(){
+  const budgets=state.budgets||{};
+  const cats=Object.keys(budgets).filter(c=>budgets[c]&&budgets[c].limit>0&&!catHidden(c));
+  if(cats.length<2){ showToast('Defina ao menos 2 limites pra redistribuir','info'); return; }
+  const curTotal=cats.reduce((s,c)=>s+budgets[c].limit,0)||1;
+  const planInc=(state.p1income||0)+(state.p2income||0);
+  const target=planInc>0?Math.max(0,Math.round(planInc-(state.savingsTarget||0))):curTotal;
+  const tt=target>0?target:curTotal;
+  openConfirm('Redistribuir os limites proporcionalmente pra somarem '+fmt(tt)+'? Mantém a proporção atual de cada categoria.', ()=>{
+    let distributed=0;
+    cats.forEach((c,i)=>{
+      let nv; if(i===cats.length-1) nv=tt-distributed; else { nv=Math.round(tt*(budgets[c].limit/curTotal)); distributed+=nv; }
+      state.budgets[c]={limit:Math.max(0,nv)};
+    });
+    saveState(); updateBudgetBadge(); renderCurrentTab(); showToast('⚖️ Limites redistribuídos!','success');
+  }, {okLabel:'Redistribuir'});
 }
 // Oculta uma categoria de vez (some do orçamento e do lançamento). Dá pra restaurar.
 function catHidden(id){ return (state.hiddenCats||[]).includes(id); }
