@@ -40,7 +40,10 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 2. **Subir a versão:** `APP_VERSION` (topo do script) **+** `CACHE` no `sw.js` — **mesmo número** (ex.: `v33` → `v34`). Sem isso o celular instalado fica preso na versão velha.
 3. **Validar a sintaxe** dos `<script>` (comando abaixo) — só commitar se der **0 erros**.
 4. **Commit + push direto na `main`** (mensagem em PT, terminando com a linha de co-autoria).
-5. Pronto — em ~1 min o Pages publica. No app: **Config → Dados → 🔄 Atualizar** (ou Ctrl+Shift+R) puxa a versão nova.
+5. **Atualizar este `CLAUDE.md`** se a mudança for relevante (feature/aba nova, mudança de arquitetura, nova chave/URL) — no **mesmo commit**.
+6. Pronto — em ~1 min o Pages publica. No app: **Config → Dados → 🔄 Atualizar** (ou Ctrl+Shift+R) puxa a versão nova.
+
+> 📌 **REGRA DE OURO:** sempre que a gente mexer em algo, **este CLAUDE.md tem que ser atualizado junto**. Ele é a fonte da verdade do projeto — se ficar desatualizado, perde o valor.
 
 **Validador de sintaxe (rodar antes do commit):**
 ```
@@ -138,3 +141,4 @@ Esses valores **jamais** entram no código/Git. Vivem só onde indicado:
 4. **Nunca** commitar segredos (seção 7). Apagar temporários de admin.
 5. **Manter arquivo único** — sem build, sem framework, sem quebrar em vários arquivos.
 6. **Nunca** remover a trava `coupleLoaded` (anti-apagão).
+7. **Atualizar este `CLAUDE.md`** SEMPRE que mexer em algo relevante (feature/aba nova, arquitetura, chave/URL) — no **mesmo commit** da mudança. É a regra de ouro.
