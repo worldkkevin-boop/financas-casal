@@ -895,7 +895,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v33'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v34'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -2941,15 +2941,19 @@ const DREAMS = {
   casa_construir:{ id:'casa_construir', title:'Casa Própria',     icon:'🏠', currency:'BRL',
                 habits:['Guardar dinheiro da obra este mês 🏦','Revisar o orçamento do mês 📊','Cotar materiais 🧱','Acompanhar a obra 👷'],
                 phases:DREAM_CONSTRUIR_PHASES,  missions:DREAM_CONSTRUIR_MISSIONS },
-  veiculo:    { id:'veiculo',    title:'Veículo',               icon:'🚗', currency:'BRL',
-                habits:['Guardar dinheiro do veículo este mês 🏦','Revisar o orçamento do mês 📊','Pesquisar modelos/preços 🔍','Evitar dívidas novas 🚫'],
+  veiculo:    { id:'veiculo',    title:'Carro',                 icon:'🚗', currency:'BRL',
+                habits:['Guardar dinheiro do carro este mês 🏦','Revisar o orçamento do mês 📊','Pesquisar modelos/preços 🔍','Evitar dívidas novas 🚫'],
+                phases:DREAM_VEICULO_PHASES,    missions:DREAM_VEICULO_MISSIONS },
+  moto:       { id:'moto',       title:'Moto',                  icon:'🏍️', currency:'BRL',
+                habits:['Guardar dinheiro da moto este mês 🏦','Revisar o orçamento do mês 📊','Pesquisar modelos/preços (FIPE) 🔍','Evitar dívidas novas 🚫'],
                 phases:DREAM_VEICULO_PHASES,    missions:DREAM_VEICULO_MISSIONS },
 };
 const DREAM_CHOICES = [
   {type:'usa',           icon:'✈️', label:'Sonho Americano',  sub:'Emigrar pros EUA'},
   {type:'casa_comprar',  icon:'🏡', label:'Casa — Comprar',   sub:'Comprar pronta'},
   {type:'casa_construir',icon:'🏠', label:'Casa — Construir',  sub:'Construir do zero'},
-  {type:'veiculo',       icon:'🚗', label:'Veículo',          sub:'Carro ou moto'},
+  {type:'veiculo',       icon:'🚗', label:'Carro',            sub:'Comprar um carro'},
+  {type:'moto',          icon:'🏍️', label:'Moto',             sub:'Comprar uma moto'},
 ];
 // Estimativa de custos por sonho (editável). USA em US$, os demais em R$.
 const DREAM_COSTS = {
@@ -2989,6 +2993,14 @@ const DREAM_COSTS = {
     {label:'Seguro (1º ano)', value:3000},
     {label:'IPVA + licenciamento', value:1500},
     {label:'Reserva p/ manutenção', value:2000},
+  ],
+  moto: [
+    {label:'Valor da moto', value:18000},
+    {label:'Transferência + documentação', value:1200},
+    {label:'Seguro (1º ano)', value:1800},
+    {label:'IPVA + licenciamento', value:600},
+    {label:'Equipamentos (capacete, jaqueta, luvas)', value:1500},
+    {label:'Reserva p/ manutenção', value:1200},
   ],
 };
 function dreamDef(){ return DREAMS[(state.dream&&state.dream.type)||'usa']||DREAMS.usa; }
@@ -4628,17 +4640,14 @@ async function subscribeAI() {
 function renderAI() {
   const usdRate = (state.dream && state.dream.usdRate) || 5.5;
   
-  const totalBRL = aiServices.reduce((acc, s) => {
+  // Custo MENSAL equivalente: assinatura anual conta /12 (rótulo é "Gasto Mensal Total").
+  const monthlyBRL = (s) => {
     const val = parseFloat(s.amount) || 0;
-    if (s.currency === 'BRL') return acc + val;
-    return acc + (val * usdRate);
-  }, 0);
-
-  const totalUSD = aiServices.reduce((acc, s) => {
-    const val = parseFloat(s.amount) || 0;
-    if (s.currency === 'USD') return acc + val;
-    return acc + (val / usdRate);
-  }, 0);
+    const brl = s.currency === 'BRL' ? val : val * usdRate;
+    return s.cycle === 'anual' ? brl / 12 : brl;
+  };
+  const totalBRL = aiServices.reduce((acc, s) => acc + monthlyBRL(s), 0);
+  const totalUSD = totalBRL / usdRate;
 
   const today = new Date();
   const renewalsSoon = aiServices.filter(s => {
@@ -4689,9 +4698,9 @@ function renderAI() {
               <div class="tx-icon" style="background: #ef444422">📅</div>
               <div class="tx-info">
                 <div class="tx-desc" style="color: #ef4444">${esc(s.name)}</div>
-                <div class="tx-meta">Vence em ${new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                <div class="tx-meta">Vence em ${new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR')} · ${s.currency === 'USD' ? 'US$' : 'R$'}${s.amount}</div>
               </div>
-              <div class="tx-amount" style="color: #ef4444">${s.currency === 'USD' ? 'US$' : 'R$'}${s.amount}</div>
+              <button class="btn-ghost" style="font-size:.72rem; padding:7px 11px; background:#10b98122; border:1px solid #10b98144; border-radius:10px; color:#34d399; white-space:nowrap" onclick="event.stopPropagation(); renewAI('${s.id}')">🔄 Renovar</button>
             </div>
           `).join('')}
         </div>
@@ -4724,19 +4733,27 @@ function renderAI() {
             const catIcons = {texto: '💬', imagem: '🎨', coding: '💻', prod: '⚡', outros: '🤖'};
             const statusColors = {sim: '#10b981', talvez: '#f59e0b', nao: '#ef4444'};
             const statusLabels = {sim: 'Manter', talvez: 'Avaliar', nao: 'Cancelar'};
+            const dateLabel = s.nextDate ? new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR') : '---';
+            const overdue = s.nextDate && (new Date(s.nextDate + 'T12:00:00') < new Date(new Date().setHours(0,0,0,0)));
             return `
-              <div class="tx-item" onclick="editAI('${s.id}')">
-                <div class="tx-icon" style="background: var(--surface3)">${catIcons[s.category]||'🤖'}</div>
-                <div class="tx-info">
-                  <div class="tx-desc">${esc(s.name)} <span style="font-size: .65rem; color: ${statusColors[s.willRenew||'sim']}; font-weight: 800; margin-left: 5px">${statusLabels[s.willRenew||'sim']}</span></div>
-                  <div class="tx-meta">
-                    Próxima: ${s.nextDate ? new Date(s.nextDate + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}
-                    ${s.roi ? ` · <span style="color: var(--text2)">${esc(s.roi)}</span>` : ''}
+              <div style="margin-bottom: 8px">
+                <div class="tx-item" onclick="editAI('${s.id}')">
+                  <div class="tx-icon" style="background: var(--surface3)">${catIcons[s.category]||'🤖'}</div>
+                  <div class="tx-info">
+                    <div class="tx-desc">${esc(s.name)} <span style="font-size: .65rem; color: ${statusColors[s.willRenew||'sim']}; font-weight: 800; margin-left: 5px">${statusLabels[s.willRenew||'sim']}</span></div>
+                    <div class="tx-meta">
+                      ${overdue ? `<span style="color:#ef4444; font-weight:700">⚠️ Venceu ${dateLabel}</span>` : `Próxima: ${dateLabel}`}
+                      ${s.roi ? ` · <span style="color: var(--text2)">${esc(s.roi)}</span>` : ''}
+                    </div>
+                  </div>
+                  <div style="text-align: right">
+                    <div class="tx-amount income" style="color: #60a5fa">${s.currency === 'USD' ? 'US$' : 'R$'}${parseFloat(s.amount).toFixed(2)}</div>
+                    <div style="font-size: .6rem; color: var(--text3)">${esc(s.cycle)}</div>
                   </div>
                 </div>
-                <div style="text-align: right">
-                  <div class="tx-amount income" style="color: #60a5fa">${s.currency === 'USD' ? 'US$' : 'R$'}${parseFloat(s.amount).toFixed(2)}</div>
-                  <div style="font-size: .6rem; color: var(--text3)">${esc(s.cycle)}</div>
+                <div style="display:flex; gap:8px; margin-top:6px; padding:0 4px">
+                  <button class="btn-ghost" style="flex:1; font-size:.75rem; padding:7px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; color:#34d399" onclick="event.stopPropagation(); renewAI('${s.id}')">🔄 Renovar agora</button>
+                  <button class="btn-ghost" style="flex:1; font-size:.75rem; padding:7px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; color:#f87171" onclick="event.stopPropagation(); cancelAI('${s.id}')">🗑️ Cancelar</button>
                 </div>
               </div>
             `;
@@ -4836,6 +4853,44 @@ function deleteAICurrent() {
       showToast('Erro ao excluir', 'error');
     }
   });
+}
+
+// 🔄 Renovar com 1 toque: empurra a próxima renovação +1 ciclo (mensal/anual) a partir da data atual.
+// Se já venceu, avança até cair no futuro. Marca como "manter".
+async function renewAI(id) {
+  const s = aiServices.find(x => x.id === id);
+  if (!s) return;
+  let d = s.nextDate ? new Date(s.nextDate + 'T12:00:00') : new Date(new Date().setHours(12,0,0,0));
+  const step = () => d.setMonth(d.getMonth() + (s.cycle === 'anual' ? 12 : 1));
+  step();
+  const todayMid = new Date(); todayMid.setHours(12, 0, 0, 0);
+  let guard = 0;
+  while (d < todayMid && guard++ < 120) step();
+  const nd = d.toISOString().slice(0, 10);
+  try {
+    await db.collection('ai_management').doc(id).update({
+      nextDate: nd,
+      willRenew: 'sim',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('🔄 ' + s.name + ' renovado até ' + new Date(nd + 'T12:00:00').toLocaleDateString('pt-BR'), 'success');
+  } catch (e) {
+    console.error('Erro ao renovar IA:', e);
+    showToast('Erro ao renovar', 'error');
+  }
+}
+
+// 🗑️ Cancelar = apagar a assinatura de vez (com confirmação).
+function cancelAI(id) {
+  const s = aiServices.find(x => x.id === id);
+  openConfirm('Cancelar e apagar "' + (s ? s.name : 'esta assinatura') + '"? Ela sai da lista de vez.', async () => {
+    try {
+      await db.collection('ai_management').doc(id).delete();
+      showToast('Assinatura cancelada e removida', 'success');
+    } catch (e) {
+      showToast('Erro ao cancelar', 'error');
+    }
+  }, {okLabel: 'Cancelar assinatura'});
 }
 
 // PULL TO REFRESH (puxar para atualizar)

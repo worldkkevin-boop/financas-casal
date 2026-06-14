@@ -28,7 +28,7 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 | **Doc do casal (Firestore)** | `couples/ZBWGP3` (Kevin = p1, Gabrielly = p2) |
 | **AI Studio (por usuário)** | coleção `ai_management`, filtrada por `userId == uid` (exclusiva de cada login) |
 | **Bot multi-tenant** | mapa em `botConfig/tenants` (JID da conversa → casal). Casal de teste do amigo: `amigo01` (solo) |
-| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v33**) |
+| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v34**) |
 
 ---
 
@@ -80,7 +80,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
 3. **Orçamento** (`budget`) — limites **fixos e independentes** por categoria. "Aplicar plano" é a única coisa que distribui.
 4. **Metas / Caixinhas** (`goals`) — aportes pra objetivos.
 5. **Carteira** (`portfolio`) — investimentos (ações/FII/RF/dólar).
-6. **Sonho** (`dream`) — Sonho Americano: intro pra escolher, missões, hábitos diários com streak, "quanto custa", card pra compartilhar.
+6. **Sonho** (`dream`) — escolher um sonho (Sonho Americano ✈️, Casa 🏡/🏠, **Carro 🚗**, **Moto 🏍️**): intro, missões, hábitos diários com streak, "quanto custa" (`DREAM_COSTS`), card pra compartilhar. Sonhos em `DREAMS`/`DREAM_CHOICES`; carro e moto reusam `DREAM_VEICULO_PHASES/MISSIONS`.
 7. **Anual** (`annual`) — visão dos 12 meses.
 8. **AI Studio** (`ai`) — **EXCLUSIVA por usuário** (ver seção 6).
 9. **Configurações** (`settings`) — conta Google, convite/casal, dia do pagamento, ciclo do pagamento, cartões, categorias, backup, 🔄 atualizar.
@@ -108,6 +108,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
 - Guarda em coleção **separada** `ai_management`, cada doc com `userId`. Só aparece pra quem é dono (`userId == request.auth.uid`).
 - **Nunca** misturar com o doc do casal (`couples/...`). É proposital ser isolado.
 - Regras no `firestore.rules` (bloco `match /ai_management/{docId}`).
+- Cada assinatura tem **🔄 Renovar agora** (`renewAI` — empurra `nextDate` +1 ciclo, avança até cair no futuro) e **🗑️ Cancelar** (`cancelAI` — apaga de vez). Alerta de renovação ≤7 dias no topo; "⚠️ Venceu" em vermelho quando passou. "Gasto Mensal Total" conta assinatura **anual ÷12** (`monthlyBRL`).
 
 ---
 
