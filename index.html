@@ -895,7 +895,7 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v34'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v35'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -2365,6 +2365,11 @@ function renderSavingsCard(){
   } else {
     html+='<div style="font-size:.8rem;color:var(--text3);text-align:center;padding:2px 0 4px">Crie metas/caixinhas na aba Metas para distribuir esse valor.</div>';
   }
+  // Sincronia Poupança → Carteira: mostra o que já está investido e leva pra lá.
+  const invTotal=portfolioTotal();
+  if(invTotal>0){
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:var(--radius-sm);padding:8px 11px;margin-top:10px;cursor:pointer" onclick="navTo(\'portfolio\')"><div><div style="font-size:.78rem;font-weight:600">💹 Investido na Carteira</div><div style="font-size:.66rem;color:var(--text3)">ações, FIIs, renda fixa…</div></div><div style="text-align:right"><div style="font-family:var(--font-d);font-weight:700;color:var(--cyan)">'+fmt(invTotal)+'</div><div style="font-size:.64rem;color:var(--cyan)">abrir Carteira →</div></div></div>';
+  }
   html+='<button class="btn-primary" style="width:100%;margin-top:11px" onclick="navTo(\'goals\')">Ir para Metas →</button>';
   html+='<div class="setting-row" style="margin-top:4px;padding:7px 0"><div><div class="setting-label" style="font-size:.8rem">Meta de poupança / mês</div></div><input class="setting-input" type="number" inputmode="decimal" value="'+target+'" onchange="setSavingsTarget(+this.value)"/></div>';
   html+='</div>';
@@ -3629,6 +3634,7 @@ function renderPortfolio(){
   </div>`;
 
   html+=renderArcaCard();
+  html+=renderGoalsLinkCard();
 
   // barras de alocação
   if(byClass.length){
@@ -3679,6 +3685,26 @@ function renderPortfolio(){
 
   html+='<div style="font-size:.7rem;color:var(--text3);text-align:center;padding:4px 10px 16px;line-height:1.5">⚠️ O "preço-teto" usa o método Bazin (dividendos ÷ 6%) e o "viés" é automático — é só um <strong>guia de estudo</strong>, <strong>não é recomendação de investimento</strong>. Decisões são de vocês.</div>';
   return html;
+}
+// Espelho das Metas/Caixinhas + Sonho dentro da Carteira (sincronia entre abas, só leitura).
+function renderGoalsLinkCard(){
+  const goals=state.goals||[];
+  const d=state.dream||{};
+  const dreamActive=(d.targetUSD>0)||(d.savedUSD>0);
+  if(!goals.length && !dreamActive) return '';
+  let h='<div class="card fade-up"><div class="card-title">🎯 Metas & Sonho do casal<span style="font-size:.68rem;color:var(--text3);font-weight:500">também na aba Metas</span></div>';
+  goals.forEach(g=>{
+    const tgt=g.target||0, sv=g.saved||0;
+    const pct=tgt>0?Math.min(100,sv/tgt*100):0;
+    h+='<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:3px"><span style="font-weight:600">'+esc(g.icon||(g.type==='caixinha'?'💰':'🎯'))+' '+esc(g.name)+'</span><span style="color:var(--text3)">'+fmt(sv)+(tgt>0?' / '+fmt(tgt):'')+'</span></div>'+(tgt>0?'<div class="budget-bar"><div class="budget-fill" style="width:'+pct.toFixed(0)+'%;background:var(--accent2)"></div></div>':'')+'</div>';
+  });
+  if(dreamActive){
+    const sv=d.savedUSD||0, tgt=d.targetUSD||0; const pct=tgt>0?Math.min(100,sv/tgt*100):0;
+    h+='<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:3px"><span style="font-weight:600">'+esc(d.icon||dreamDef().icon)+' '+esc(d.title||dreamDef().title)+'</span><span style="color:var(--text3)">'+dreamMoney(sv)+(tgt>0?' / '+dreamMoney(tgt):'')+'</span></div>'+(tgt>0?'<div class="budget-bar"><div class="budget-fill" style="width:'+pct.toFixed(0)+'%;background:var(--accent)"></div></div>':'')+'</div>';
+  }
+  h+='<div style="display:flex;gap:8px;margin-top:4px"><button class="btn-secondary" style="flex:1;font-size:.8rem" onclick="navTo(\'goals\')">💰 Abrir Metas</button><button class="btn-secondary" style="flex:1;font-size:.8rem" onclick="navTo(\'dream\')">✈️ Abrir Sonho</button></div>';
+  h+='</div>';
+  return h;
 }
 // --- MÉTODO ARCA (4 pilares de 25%) ---
 const ARCA=[
@@ -3734,6 +3760,11 @@ function renderArcaCard(){
   // planejador de aporte
   h+='<div class="divider"></div>';
   h+='<div class="setting-row" style="padding:6px 0"><div><div class="setting-label">💸 Aporte deste mês</div><div class="setting-sub">Quanto vai investir agora</div></div><input class="setting-input" type="number" inputmode="decimal" value="'+(aporte||'')+'" placeholder="0,00" onchange="setAporte(this.value)"/></div>';
+  // Sincronia Orçamento → Carteira: puxa o "guardar este mês" do planejador de salário como aporte.
+  const plan=state.savingsTarget||0;
+  if(!aporte && plan>0){
+    h+='<button class="btn-ghost" style="width:100%;margin:0 0 7px;font-size:.76rem;color:var(--accent2);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px" onclick="setAporte('+plan+')">📥 Usar '+fmt(plan)+' do meu plano (Orçamento)</button>';
+  }
   if(split){
     h+='<div style="font-size:.72rem;color:var(--text3);margin-bottom:5px">Sugestão pra reequilibrar (compra primeiro quem está atrás):</div>';
     split.forEach(s=>{ if(s.add<0.5) return;
