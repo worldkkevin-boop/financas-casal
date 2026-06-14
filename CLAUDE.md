@@ -28,7 +28,7 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 | **Doc do casal (Firestore)** | `couples/ZBWGP3` (Kevin = p1, Gabrielly = p2) |
 | **AI Studio (por usuário)** | coleção `ai_management`, filtrada por `userId == uid` (exclusiva de cada login) |
 | **Bot multi-tenant** | mapa em `botConfig/tenants` (JID da conversa → casal). Casal de teste do amigo: `amigo01` (solo) |
-| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v35**) |
+| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v36**) |
 
 ---
 
@@ -100,6 +100,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
 - **Import de fatura:** parcelas com **data real da compra** (mês a mês, flag `realDate`), `invoiceKeyFor` joga na fatura certa. Botão "🗑️ limpar importados do cartão" pra reimportar limpo.
 - **Sincronia entre abas (só leitura, sem novo campo no Firebase):** Carteira mostra `renderGoalsLinkCard()` (metas/caixinhas/sonho espelhados) e botão "📥 Usar X do meu plano" que joga `state.savingsTarget` (Orçamento) no `state.portfolio.aporte`; o card "Sonho & Poupança" (Orçamento) mostra `portfolioTotal()` investido e leva pra Carteira. Os 3 números de aporte (`savingsTarget` no Orçamento, `goalRec` nas Metas, `portfolio.aporte` na Carteira) ainda são independentes — a liga é por referência cruzada, **não** crie campo sincronizado novo sem seguir a regra dos 3 lugares.
 - **PWA:** `sw.js` é **network-first pro HTML** (pega versão nova online) + auto-reload no `controllerchange`. Botão "🔄 Atualizar" (`forceUpdate`).
+- **Push / notificação com app fechado (FCM):** `registerPushToken()` (chamado no `enterApp`) pega o token FCM com `vapidKey` + a registration do `sw.js` e salva em `couples/{id}.pushTokens` (map token→info) via merge (não entra no `pushToFirebase`, sem apagão). O `sw.js` **inicializa o Firebase** (sem isso o `onBackgroundMessage` não dispara). Quem **envia** o push é o **bot** (`firebase-admin`, `src/push.js`) quando registra lançamento/lembrete. ⚠️ iPhone só recebe se o app estiver **instalado na tela inicial**. Requer permissão de notificação concedida.
 
 ---
 

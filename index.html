@@ -866,11 +866,6 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
   firebase.auth().onAuthStateChanged(u=>{ try { authRouter(u); } catch(e){ console.error('authRouter', e); } });
   try {
     messaging = firebase.messaging();
-    if (FIREBASE_CONFIG.vapidKey) {
-      messaging.getToken({ vapidKey: FIREBASE_CONFIG.vapidKey }).then(token => {
-        console.log('FCM token', token);
-      }).catch(() => {});
-    }
     messaging.onMessage(payload => {
       const notification = payload.notification || {};
       const title = notification.title || 'Nós Dois 💰';
@@ -893,9 +888,36 @@ if (USE_FIREBASE && typeof firebase !== 'undefined') {
   }
 }
 
+// 🔔 PUSH (app fechado): pega o token FCM deste aparelho e salva no doc do casal,
+// pra o bot poder notificar mesmo com o app fechado. Roda depois de logar/entrar no casal.
+async function registerPushToken(){
+  try{
+    if(!messaging || !FIREBASE_CONFIG.vapidKey) return;
+    if(!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    if(Notification.permission==='default'){ try{ await Notification.requestPermission(); }catch(e){} }
+    if(Notification.permission!=='granted') return;
+    const reg = await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey: FIREBASE_CONFIG.vapidKey, serviceWorkerRegistration: reg });
+    if(token) await saveFcmToken(token);
+  }catch(e){ console.warn('registerPushToken', e); }
+}
+async function saveFcmToken(token){
+  try{
+    if(!db || !state.coupleId) return;
+    const uid = currentUid || await ensureAuth();
+    if(!uid) return;
+    const who = getCurrentUser();
+    const name = who==='p1'?state.p1name:state.p2name;
+    // map token->info no doc do casal. pushToFirebase usa merge e NÃO mexe em pushTokens (sem apagão).
+    await db.collection('couples').doc(state.coupleId).set({
+      pushTokens: { [token]: { uid, who, name: name||'', ts: Date.now() } }
+    }, { merge:true });
+  }catch(e){ console.warn('saveFcmToken', e); }
+}
+
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v35'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v36'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1246,6 +1268,7 @@ async function authRouter(u){
 }
 async function enterApp(){
   if(USE_FIREBASE && state.coupleId) subscribeFirebase();
+  if(USE_FIREBASE && state.coupleId) registerPushToken(); // 🔔 registra push (app fechado)
   // Se for o admin da IA, assina a coleção privada
   const u = firebase.auth().currentUser;
   if(u && u.email === 'worldkkevin@gmail.com') subscribeAI();

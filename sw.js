@@ -1,10 +1,20 @@
-const CACHE = 'nosdois-v35';
+const CACHE = 'nosdois-v36';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 // Firebase Messaging (só ativo se Firebase estiver configurado)
 try {
   importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
   importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+  // O SW precisa inicializar o app pra receber push em background (app fechado).
+  // Config client é pública por design (igual ao FIREBASE_CONFIG do index.html).
+  firebase.initializeApp({
+    apiKey: 'AIzaSyDMNb9lkioByuixLczYv1nLL5B9m_0IFg8',
+    authDomain: 'nos-dois-financas.firebaseapp.com',
+    projectId: 'nos-dois-financas',
+    storageBucket: 'nos-dois-financas.firebasestorage.app',
+    messagingSenderId: '211174485968',
+    appId: '1:211174485968:web:8572d6384292eac6cb53d5',
+  });
 } catch(e) {}
 
 self.addEventListener('install', e => {
