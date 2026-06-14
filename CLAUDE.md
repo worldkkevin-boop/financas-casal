@@ -28,7 +28,7 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 | **Doc do casal (Firestore)** | `couples/ZBWGP3` (Kevin = p1, Gabrielly = p2) |
 | **AI Studio (por usuário)** | coleção `ai_management`, filtrada por `userId == uid` (exclusiva de cada login) |
 | **Bot multi-tenant** | mapa em `botConfig/tenants` (JID da conversa → casal). Casal de teste do amigo: `amigo01` (solo) |
-| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v37**) |
+| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v38**) |
 
 ---
 
