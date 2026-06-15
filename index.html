@@ -930,7 +930,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v43'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v44'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -3797,6 +3797,7 @@ function renderPortfolio(){
   </div>`;
 
   html+=renderArcaCard();
+  html+=renderMonthlyGuide();
   html+=renderGoalsLinkCard();
 
   // ⭐ RADAR DE OPORTUNIDADES — ranqueia ativos com sinal "Comprar" por desconto vs preço-teto
@@ -3886,6 +3887,81 @@ function renderGoalsLinkCard(){
   h+='<div style="display:flex;gap:8px;margin-top:4px"><button class="btn-secondary" style="flex:1;font-size:.8rem" onclick="navTo(\'goals\')">💰 Abrir Metas</button><button class="btn-secondary" style="flex:1;font-size:.8rem" onclick="navTo(\'dream\')">✈️ Abrir Sonho</button></div>';
   h+='</div>';
   return h;
+}
+// --- GUIA MENSAL ARCA — o que fazer este mês ---
+function renderMonthlyGuide(){
+  ensurePortfolio();
+  const p=state.portfolio;
+  const vals=arcaVals(); const total=vals.reduce((s,x)=>s+x.val,0);
+  if(total<=0 && !(p.custoVida>0)) return '';
+
+  const custo=p.custoVida||0, resvTarget=custo*6;
+  const caixa=vals.find(v=>v.cls==='renda_fixa').val;
+  const resvFromGoals=reserveGoalsSaved();
+  const resvHave=caixa+resvFromGoals;
+  const resvOk=resvTarget>0 && resvHave>=resvTarget;
+  const resvMissing=resvTarget>0?Math.max(0,resvTarget-resvHave):0;
+
+  // Encontra o pilar mais desbalanceado (abaixo de 25%)
+  let mostBehind=null, maxGap=0;
+  if(total>0){
+    vals.forEach(p=>{
+      const pct=p.val/total*100;
+      const gap=25-pct;
+      if(gap>maxGap){ maxGap=gap; mostBehind=p; }
+    });
+  }
+
+  const aporte=p.aporte||0;
+  let priority='', detail='', action='', color='';
+
+  // 1. Reserva de emergência é prioridade #1
+  if(resvTarget>0 && !resvOk){
+    priority='🛡️ Prioridade #1: Reserva de Emergência';
+    detail='Faltam <strong>'+fmt(resvMissing)+'</strong> pra completar os 6 meses ('+fmt(resvTarget)+'). Enquanto isso, segure novos investimentos de risco.';
+    action='Meta do mês: juntar '+fmt(Math.min(resvMissing,aporte||resvMissing/3))+' na Reserva';
+    color='var(--orange)';
+  }
+  // 2. Carteira desbalanceada
+  else if(mostBehind && maxGap>3 && aporte>0){
+    const split=arcaAporteSplit(aporte);
+    const forBehind=split.find(s=>s.cls===mostBehind.cls);
+    priority='⚖️ Reequilibrar: '+mostBehind.icon+' '+mostBehind.label;
+    detail='Este pilar está <strong>'+(maxGap.toFixed(0))+'% abaixo</strong> da meta de 25%. É o que mais precisa de aporte agora.';
+    action='Sugestão: investir <strong>'+fmt(forBehind?forBehind.add:0)+'</strong> em '+mostBehind.label+' este mês';
+    color='var(--cyan)';
+  }
+  // 3. Tudo em ordem — foco no sonho
+  else if(resvOk && total>0){
+    const dreamD=state.dream||{};
+    const dreamActive=(dreamD.targetUSD>0)||(dreamD.savedUSD>0);
+    priority='🚀 Tudo em ordem! Hora de acelerar';
+    if(dreamActive){
+      const need=dreamD.targetUSD-(dreamD.savedUSD||0);
+      detail='Reserva completa ✅ e carteira balanceada. O foco agora é o <strong>sonho</strong>!';
+      action=need>0?'Faltam '+dreamMoney(need)+' pro sonho — que tal um aporte extra? 🎯':'🎉 Sonho realizado! Celebrem e escolham o próximo!';
+    } else {
+      detail='Reserva completa ✅ e carteira balanceada. Que tal escolher um <strong>sonho</strong> na aba Sonho?';
+      action='Definam um sonho pra dar direção aos investimentos ✨';
+    }
+    color='var(--green)';
+  }
+  // 4. Fallback: configurar o básico
+  else {
+    priority='📋 Configure sua estratégia';
+    detail='Defina seu <strong>custo de vida</strong> (6 meses = reserva) e seu <strong>aporte mensal</strong> pra receber recomendações personalizadas.';
+    action='Preencha os campos acima 👆';
+    color='var(--text3)';
+  }
+
+  if(!priority) return '';
+
+  return '<div class="card fade-up" style="border-left:3px solid '+color+'">'
+    +'<div class="card-title">🧭 O que fazer este mês</div>'
+    +'<div style="font-size:.85rem;font-weight:700;color:'+color+';margin-bottom:6px">'+priority+'</div>'
+    +'<div style="font-size:.76rem;color:var(--text2);margin-bottom:8px;line-height:1.5">'+detail+'</div>'
+    +'<div style="background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:.78rem;color:var(--text1);text-align:center;font-weight:600">'+action+'</div>'
+    +'</div>';
 }
 // --- MÉTODO ARCA (4 pilares de 25%) ---
 const ARCA=[
