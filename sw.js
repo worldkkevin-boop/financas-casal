@@ -1,4 +1,4 @@
-const CACHE = 'nosdois-v44';
+const CACHE = 'nosdois-v45';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 // Firebase Messaging (só ativo se Firebase estiver configurado)
