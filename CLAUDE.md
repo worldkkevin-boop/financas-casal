@@ -28,7 +28,7 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 | **Doc do casal (Firestore)** | `couples/ZBWGP3` (Kevin = p1, Gabrielly = p2) |
 | **AI Studio (por usuário)** | coleção `ai_management`, filtrada por `userId == uid` (exclusiva de cada login) |
 | **Bot multi-tenant** | mapa em `botConfig/tenants` (JID da conversa → casal). Casal de teste do amigo: `amigo01` (solo) |
-| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v38**) |
+| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v39**) |
 
 ---
 
@@ -97,6 +97,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
 - **Categorias:** fixas em `CATS_EXPENSE`/`CATS_INCOME`. Ocultar via `state.hiddenCats` + helper `catHidden(id)` — **filtrar em todo lugar que exibe**.
 - **Mês/ciclo:** `cycleRange` respeita "mês começa no pagamento" (`state.paydayCycle` + `state.payday`). `getMonthTx()` usa isso.
 - **Fatura do cartão:** `invoiceKeyFor(data, fechamento)` decide em qual fatura a compra cai. Fatura paga = `cardReserve.paid` (chave `mês-ano`). `txPaid(t)`: crédito segue a fatura; débito/pix = pago quando a data chega.
+- **Depósito em caixinha/meta sai do "Em conta":** `confirmDeposit`/`confirmWithdraw` chamam `pushSavingsMove()`, que cria uma tx `transfer:true` + `savingsMove:true` (despesa no depósito, receita na retirada, atribuída ao `getCurrentUser()`). Todo display de gasto/categoria/orçamento exclui `transfer`, então NÃO polui o orçamento; só `walletBalance` conta `savingsMove` (linha do `if(t.transfer && !t.savingsMove) return`), então o saldo cai/sobe e o **patrimônio não conta o dinheiro 2x**. Pix entre o casal e o aporte de `investLeftover` continuam `transfer` sem `savingsMove` (não mexem no saldo).
 - **Import de fatura:** parcelas com **data real da compra** (mês a mês, flag `realDate`), `invoiceKeyFor` joga na fatura certa. Botão "🗑️ limpar importados do cartão" pra reimportar limpo.
 - **Sincronia entre abas (só leitura, sem novo campo no Firebase):** Carteira mostra `renderGoalsLinkCard()` (metas/caixinhas/sonho espelhados) e botão "📥 Usar X do meu plano" que joga `state.savingsTarget` (Orçamento) no `state.portfolio.aporte`; o card "Sonho & Poupança" (Orçamento) mostra `portfolioTotal()` investido e leva pra Carteira. Os 3 números de aporte (`savingsTarget` no Orçamento, `goalRec` nas Metas, `portfolio.aporte` na Carteira) ainda são independentes — a liga é por referência cruzada, **não** crie campo sincronizado novo sem seguir a regra dos 3 lugares.
 - **PWA:** `sw.js` é **network-first pro HTML** (pega versão nova online) + auto-reload no `controllerchange`. Botão "🔄 Atualizar" (`forceUpdate`).

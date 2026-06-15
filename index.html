@@ -924,7 +924,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v38'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v39'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1637,7 +1637,8 @@ function walletBalance(p){
   const hoje=new Date().toISOString().slice(0,10);
   let mov=0;
   (state.transactions||[]).forEach(t=>{
-    if(t.person!==p || t.transfer) return;
+    if(t.person!==p) return;
+    if(t.transfer && !t.savingsMove) return;     // Pix entre o casal/aporte normal não mexe no saldo; depósito em caixinha (savingsMove) SIM
     if(t.payment==='credito') return;            // crédito vai pra fatura, não sai da conta agora
     const ct = t.createdAt ? Date.parse(t.createdAt) : (t.date ? Date.parse(t.date+'T12:00:00') : 0);
     if(ct && ct <= anchor) return;               // só conta o que foi lançado DEPOIS de definir o saldo (fim do desconto dobrado)
@@ -2817,7 +2818,15 @@ function confirmDeposit() {
   if (!amount||isNaN(amount)||amount<=0){el.style.borderColor='var(--red)';el.classList.add('shake');setTimeout(()=>{el.classList.remove('shake');el.style.borderColor='';},400);return;}
   el.style.borderColor='';
   const g=state.goals.find(x=>x.id===depositingGoalId);
-  if (g){g.saved=(g.saved||0)+amount;if(!g.deposits)g.deposits=[];g.deposits.push({date:new Date().toISOString().slice(0,10),amount});saveState();closeDepositModal();showToast('💰 Depósito registrado!','success');renderCurrentTab();}
+  if (g){g.saved=(g.saved||0)+amount;if(!g.deposits)g.deposits=[];g.deposits.push({date:new Date().toISOString().slice(0,10),amount});pushSavingsMove('💰 Depósito: '+g.name,amount,'out');saveState();closeDepositModal();showToast('💰 Depósito registrado! (saiu do Em conta)','success');renderCurrentTab();}
+}
+// Move dinheiro entre "Em conta" e caixinha/meta. transfer:true → fora do orçamento/categorias; savingsMove:true → mexe no saldo Em conta.
+function pushSavingsMove(label, amount, kind){
+  const who=getCurrentUser()==='p2'?'p2':'p1';
+  state.transactions.push({id:uid(),description:label,amount:Math.abs(amount),date:new Date().toISOString().slice(0,10),
+    category:kind==='out'?'outros':'outros_r',payment:'pix',type:kind==='out'?'expense':'income',person:who,
+    splitMode:null,splitPct:null,note:null,recurring:null,installCur:null,installTot:null,
+    transfer:true,savingsMove:true,createdBy:who,createdAt:new Date().toISOString()});
 }
 function withdrawFromGoal(id) {
   const g=state.goals.find(x=>x.id===id); if (!g||!g.saved) return;
@@ -2838,7 +2847,8 @@ function confirmWithdraw() {
   g.saved=(g.saved||0)-amount;
   if (!g.deposits) g.deposits=[];
   g.deposits.push({date:new Date().toISOString().slice(0,10),amount:-amount});
-  saveState(); closeDepositModal(); showToast('↩ Retirada registrada','success'); renderCurrentTab();
+  pushSavingsMove('↩ Retirada: '+g.name,amount,'in'); // volta pro Em conta
+  saveState(); closeDepositModal(); showToast('↩ Retirada registrada (voltou pro Em conta)','success'); renderCurrentTab();
 }
 function deleteGoal(id) {
   openConfirm('Excluir esta meta/caixinha?', ()=>{
