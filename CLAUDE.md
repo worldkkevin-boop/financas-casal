@@ -29,7 +29,7 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 | **Doc do casal (Firestore)** | `couples/ZBWGP3` (Kevin = p1, Gabrielly = p2) |
 | **AI Studio (por usuário)** | coleção `ai_management`, filtrada por `userId == uid` (exclusiva de cada login) |
 | **Bot multi-tenant** | mapa em `botConfig/tenants` (JID da conversa → casal). Casal de teste do amigo: `amigo01` (solo) |
-| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v41**) |
+| **Versão atual** | ver `APP_VERSION` no topo do `<script>` (hoje: **v44**) |
 
 ---
 
@@ -80,7 +80,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
    - Banner **"Recorrentes deste mês"** com botão **Receber/Lançar** por item (salário NÃO entra aqui — tem tratamento próprio).
 3. **Orçamento** (`budget`) — card **🧭 Pra onde vai o salário** (`renderBudgetDistribution`): soma os limites por balde (`bucketOfCat` → essenciais/estilo do `PLAN_BUCKETS`) + ✈️ Sonho & Poupança (`savingsTarget`) como linhas, comparado ao salário (sobra/estourou). Limites por categoria com **slider de arrastar** (`budgetSliderInput` ao vivo / `budgetSliderCommit` ao soltar; arrastar até 0 remove). Botão **⚖️ Redistribuir** (`redistributeBudgets`) reequilibra proporcionalmente pra somar salário−poupança. Ao **remover** um limite, oferece redistribuir o que sobrou entre as outras. "Aplicar plano" (`applyPlan`) cria os limites iniciais pelo plano de salário.
 4. **Metas / Caixinhas** (`goals`) — aportes pra objetivos. Botão **🛟 Usar como Reserva de emergência** (`toggleReserveGoal` → `g.isReserve`); marcadas contam na reserva da Carteira via `reserveGoalsSaved()`.
-5. **Carteira** (`portfolio`) — investimentos (ações/FII/RF/dólar). A **Reserva de emergência** do ARCA agora soma `caixa` (pilar Renda Fixa) **+** `reserveGoalsSaved()` (caixinhas marcadas 🛟): quando completa, para de mandar "priorize o Caixa" e foca em investir/sonho.
+5. **Carteira** (`portfolio`) — investimentos (ações/FII/RF/dólar). A **Reserva de emergência** do ARCA agora soma `caixa` (pilar Renda Fixa) **+** `reserveGoalsSaved()` (caixinhas marcadas 🛟): quando completa, para de mandar "priorize o Caixa" e foca em investir/sonho. ⭐ **Guia Mensal** (`renderMonthlyGuide`) — card com recomendação priorizada (reserva → reequilibrar → sonho).
 6. **Sonho** (`dream`) — escolher um sonho (Sonho Americano ✈️, Casa 🏡/🏠, **Carro 🚗**, **Moto 🏍️**): intro, missões, hábitos diários com streak, "quanto custa" (`DREAM_COSTS`), card pra compartilhar. Sonhos em `DREAMS`/`DREAM_CHOICES`; carro e moto reusam `DREAM_VEICULO_PHASES/MISSIONS`.
 7. **Anual** (`annual`) — visão dos 12 meses.
 8. **AI Studio** (`ai`) — **EXCLUSIVA por usuário** (ver seção 6).
