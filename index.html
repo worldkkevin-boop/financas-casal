@@ -931,7 +931,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v46'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v47'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -1850,7 +1850,8 @@ function renderDashboard() {
   const totalExp=exp.reduce((s,t)=>s+t.amount,0);                 // gastos de consumo
   const totalInc=inc.reduce((s,t)=>s+t.amount,0);
   const totalAll=allExp.reduce((s,t)=>s+t.amount,0);              // inclui aportes a investimentos
-  const balance=totalInc-totalAll;                                // saldo real (aporte sai do saldo)
+  const aportes=state.portfolio.assets.reduce((s,a)=>s+(isRF(a)?(a.valorRF||0):((a.qty||0)*(a.price||0))),0);
+  const balance=totalInc-totalExp-aportes;                        // saldo real
   const prevExp=prevTxs.filter(t=>t.type==='expense'&&!t.transfer).reduce((s,t)=>s+t.amount,0);
   const prevInc=prevTxs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
 
@@ -1904,9 +1905,9 @@ function renderDashboard() {
   P.resumo = `<div class="card fade-up">
     <div class="card-title">Resumo de ${MONTHS_FULL[currentMonth]}</div>
     <div class="dash-grid">
-      <div class="dash-tile"><div class="dt-lbl">Receitas</div><div class="dt-val" style="color:var(--green)">${fmt(totalInc)}${trendArrow(totalInc,prevInc)}</div></div>
-      <div class="dash-tile"><div class="dt-lbl">Despesas</div><div class="dt-val" style="color:var(--red)">${fmt(totalExp)}${trendArrow(totalExp,prevExp)}</div>${credExp>0?`<div style="font-size:.62rem;color:var(--text3);margin-top:2px;line-height:1.2">↳ ${fmt(credExp)} no crédito <span style="opacity:.7">(fatura)</span></div>`:''}</div>
-      <div class="dash-tile"><div class="dt-lbl">Saldo do mês</div><div class="dt-val" style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmt(balance)}</div></div>
+      <div class="dash-tile"><div class="dt-lbl">Receitas</div><div class="dt-val" style="color:var(--green)">${fmt(totalInc)} ${trendArrow(totalInc,prevInc)}</div><div style="font-size:.62rem;color:var(--text3)">vs mês anterior</div></div>
+      <div class="dash-tile"><div class="dt-lbl">Despesas</div><div class="dt-val" style="color:var(--red)">${fmt(totalExp)} ${trendArrow(totalExp,prevExp)}</div>${credExp>0?`<div style="font-size:.62rem;color:var(--text3);margin-top:2px;line-height:1.2">↳ ${fmt(credExp)} no crédito <span style="opacity:.7">(fatura)</span></div>`:''}</div>
+      <div class="dash-tile"><div class="dt-lbl">Saldo</div><div class="dt-val" style="color:${balance>=0?'var(--green)':'var(--red)'}">${fmt(balance)}</div><div style="font-size:.62rem;color:var(--text3)">Receitas - Gastos - Aportes</div></div>
       <div class="dash-tile"><div class="dt-lbl">Contas a pagar</div><div class="dt-val" style="color:${toPay>0?'var(--orange)':'var(--text2)'}">${fmt(toPay)}</div></div>
     </div>
   </div>`;
