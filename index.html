@@ -930,7 +930,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v42'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v43'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -3692,6 +3692,17 @@ function assetCeiling(a){ // Bazin: teto = dividendo anual / 6%
   return 0;
 }
 function assetSignal(a){ const c=assetCeiling(a), p=a.price||0; if(!c||!p) return null; return p<=c?{txt:'Comprar',color:'var(--green)'}:{txt:'Esperar',color:'var(--orange)'}; }
+// Score fundamentalista: P/L + P/VP + ROE + DY = até 4 estrelas
+function assetScore(a){
+  if(isRF(a)) return '';
+  let s=0, stars='';
+  if(a.pe>=5&&a.pe<=10) s+=1; else if(a.pe>0&&a.pe<5) s+=0.5;
+  if(a.pvp!=null&&a.pvp<=2) s+=1; else if(a.pvp!=null&&a.pvp<=4) s+=0.5;
+  if(a.roe!=null&&a.roe>=10) s+=1; else if(a.roe!=null&&a.roe>=5) s+=0.5;
+  if(a.dy12>0&&a.price){ const dyPct=a.dy12/a.price*100; if(dyPct>=6) s+=1; else if(dyPct>=3) s+=0.5; }
+  stars=s>=3.5?'⭐⭐⭐⭐':s>=3?'⭐⭐⭐':s>=2?'⭐⭐':s>=1?'⭐':'';
+  return stars;
+}
 
 function sumDiv12m(d){
   // soma dividendos pagos nos últimos 12 meses (R$ por cota), se a BRAPI mandar
@@ -3711,6 +3722,13 @@ async function fetchOneQuote(ticker, token){
       const d=j&&j.results&&j.results[0];
       if(r.ok && d && d.regularMarketPrice){
         const out={price:d.regularMarketPrice, name:d.longName||d.shortName, dy12:0, pe:(parseFloat(d.priceEarnings)||null)};
+        // dados fundamentalistas (grátis no BRAPI)
+        if(d.priceBookValue!=null) out.pvp=parseFloat(d.priceBookValue);
+        if(d.returnOnEquity!=null) out.roe=parseFloat(d.returnOnEquity);
+        if(d.earningsPerShare!=null) out.lpa=parseFloat(d.earningsPerShare);
+        if(d.marketCap!=null) out.mktCap=d.marketCap;
+        if(d.sector) out.sector=d.sector;
+        if(d.priceChangePercent!=null) out.varDia=parseFloat(d.priceChangePercent);
         // 2) tentar dividendos à parte (pode não vir no grátis) — NÃO quebra o preço
         try{
           const r2=await fetch('https://brapi.dev/api/quote/'+encodeURIComponent(ticker)+'?token='+encodeURIComponent(token)+'&dividends=true',{cache:'no-store'});
@@ -3745,6 +3763,12 @@ async function fetchQuotes(){
         if(q.name&&!a.name) a.name=q.name;
         if(q.dy12>0) a.dy12=Math.round(q.dy12*100)/100; // teto automático (Bazin)
         if(q.pe!=null) a.pe=Math.round(q.pe*100)/100;
+        if(q.pvp!=null) a.pvp=Math.round(q.pvp*100)/100;
+        if(q.roe!=null) a.roe=Math.round(q.roe*100)/100;
+        if(q.lpa!=null) a.lpa=Math.round(q.lpa*100)/100;
+        if(q.mktCap!=null) a.mktCap=q.mktCap;
+        if(q.sector) a.sector=q.sector;
+        if(q.varDia!=null) a.varDia=Math.round(q.varDia*100)/100;
       });
       ok++;
     } else { fail++; if(q&&q.error) lastErr=q.error; }
@@ -3775,6 +3799,24 @@ function renderPortfolio(){
   html+=renderArcaCard();
   html+=renderGoalsLinkCard();
 
+  // ⭐ RADAR DE OPORTUNIDADES — ranqueia ativos com sinal "Comprar" por desconto vs preço-teto
+  const oportunidades=assets.filter(a=>!isRF(a)&&assetSignal(a)?.txt==='Comprar')
+    .map(a=>{const c=assetCeiling(a),p=a.price||1,d=(c-p)/p;return{...a,_desc:d,_ceil:c};})
+    .sort((a,b)=>b._desc-a._desc);
+  if(oportunidades.length){
+    html+='<div class="card fade-up" style="border-color:var(--green);border-width:1.5px">'
+      +'<div class="card-title"><span>⭐ Radar de Oportunidades</span><span style="color:var(--green);font-weight:500;font-size:.7rem">'+oportunidades.length+' ativo'+(oportunidades.length>1?'s':'')+'</span></div>';
+    oportunidades.forEach((a,i)=>{
+      const descPct=(a._desc*100).toFixed(0);
+      html+='<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)'+(i===oportunidades.length-1?'':'')+';cursor:pointer" onclick="openAssetModal(\''+a.id+'\')">'
+        +'<div style="font-family:var(--font-d);font-weight:800;font-size:.95rem;color:var(--green);min-width:32px">'+(i+1)+'º</div>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:.85rem">'+esc(a.ticker||'')+(a.name?' <span style="font-weight:400;font-size:.68rem;color:var(--text3)">'+esc(a.name)+'</span>':'')+'</div>'
+        +'<div style="font-size:.7rem;color:var(--text2);margin-top:2px">Desconto <span style="color:var(--green);font-weight:700">'+descPct+'%</span> vs preço-teto '+fmt(a._ceil)+(a.pe?' · P/L '+a.pe.toFixed(0):'')+(a.dy12?' · DY '+a.dy12.toFixed(2)+'/ano':''+(a.pvp?' · P/VP '+a.pvp.toFixed(1):''))+'</div></div>'
+        +'<div style="text-align:right"><div style="font-family:var(--font-d);font-weight:700">'+fmt(a.price)+'</div>'+(a.varDia!=null?'<div style="font-size:.65rem;color:'+(a.varDia>=0?'var(--green)':'var(--red)')+'">'+(a.varDia>=0?'+':'')+a.varDia.toFixed(1)+'%</div>':'')+'</div></div>';
+    });
+    html+='</div>';
+  }
+
   // barras de alocação
   if(byClass.length){
     html+='<div class="card fade-up"><div class="card-title">Distribuição por classe</div>';
@@ -3795,7 +3837,7 @@ function renderPortfolio(){
     const cv=items.reduce((s,a)=>s+assetValue(a),0);
     html+='<div class="card fade-up"><div class="card-title"><span style="display:inline-flex;align-items:center;gap:7px"><span style="width:10px;height:10px;border-radius:3px;background:'+c.color+'"></span>'+c.name+'</span><span style="font-size:.72rem;color:var(--text3)">'+(totalVal>0?(cv/totalVal*100).toFixed(0):'0')+'%</span></div>';
     items.forEach(a=>{
-      const sig=assetSignal(a), ceil=assetCeiling(a), val=assetValue(a);
+      const sig=assetSignal(a), ceil=assetCeiling(a), val=assetValue(a), score=assetScore(a);
       html+='<div onclick="openAssetModal(\''+a.id+'\')" style="padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">'
         +'<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-weight:700;font-size:.9rem">'+esc(a.ticker||a.name||'—')+(a.name&&a.ticker?' <span style="font-weight:400;font-size:.68rem;color:var(--text3)">'+esc(a.name)+'</span>':'')+'</div><div style="font-family:var(--font-d);font-weight:700">'+fmt(val)+'</div></div>';
       if(isRF(a)){
@@ -3805,7 +3847,7 @@ function renderPortfolio(){
           +'<div><div style="color:var(--text3);font-size:.62rem">Preço atual</div><div style="font-weight:600">'+(a.price?fmt(a.price):'—')+'</div></div>'
           +'<div><div style="color:var(--text3);font-size:.62rem">Preço-teto</div><div style="font-weight:600">'+(ceil?fmt(ceil):'—')+'</div></div>'
           +'<div style="margin-left:auto;text-align:right"><div style="color:var(--text3);font-size:.62rem">Viés</div><div style="font-weight:700;color:'+(sig?sig.color:'var(--text3)')+'">'+(sig?sig.txt:'—')+'</div></div>'
-          +'</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px"><div style="font-size:.64rem;color:var(--text3)">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)'+(a.pe?' · P/L '+a.pe.toFixed(1)+((a.pe>=5&&a.pe<=10)?' <span style="color:var(--green)">✓</span>':''):'')+'</div>'+(researchUrl(a.ticker,a.class)?'<a onclick="event.stopPropagation()" href="'+researchUrl(a.ticker,a.class)+'" target="_blank" rel="noopener" style="font-size:.64rem;color:var(--cyan);white-space:nowrap">🔗 ver teto</a>':'')+'</div>';
+          +'</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:3px"><div style="font-size:.64rem;color:var(--text3)">'+(a.qty||0)+' x '+fmt(a.avgPrice||0)+' (médio)'+(a.pe?' · P/L '+a.pe.toFixed(1)+((a.pe>=5&&a.pe<=10)?' <span style="color:var(--green)">✓</span>':''):'')+(score?' · '+score:'')+'</div>'+(researchUrl(a.ticker,a.class)?'<a onclick="event.stopPropagation()" href="'+researchUrl(a.ticker,a.class)+'" target="_blank" rel="noopener" style="font-size:.64rem;color:var(--cyan);white-space:nowrap">🔗 ver teto</a>':'')+'</div>';
       }
       html+='</div>';
     });
