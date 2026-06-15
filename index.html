@@ -924,7 +924,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v39'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v40'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -2556,6 +2556,36 @@ function reconcileBills(){
   }));
   if(changed) saveState();
 }
+// Em qual balde do plano (essenciais/estilo) cai uma categoria
+function bucketOfCat(catId){ for(const bk in PLAN_BUCKETS){ const c=PLAN_BUCKETS[bk].cats; if(c&&c[catId]!=null) return bk; } return null; }
+// Distribuição REAL do salário: soma dos limites por balde + ✈️ Sonho & Poupança (savingsTarget) — como linhas, comparado ao salário.
+function renderBudgetDistribution(){
+  const budgets=state.budgets||{};
+  const salary=((state.p1income||0)+(state.p2income||0))||planSalaryValue()||0;
+  const sums={essenciais:0,estilo:0};
+  Object.keys(budgets).forEach(c=>{ if(catHidden(c))return; const bk=bucketOfCat(c); const lim=budgets[c]&&budgets[c].limit; if(bk&&lim) sums[bk]+=lim; });
+  const sonho=state.savingsTarget||0;
+  const totalPlan=sums.essenciais+sums.estilo+sonho;
+  if(totalPlan<=0) return '';
+  const base=salary>0?salary:totalPlan;
+  const lines=[['essenciais',sums.essenciais],['estilo',sums.estilo],['sonho',sonho]];
+  let bars='';
+  lines.forEach(([bk,val])=>{ const b=PLAN_BUCKETS[bk]; const pct=base>0?val/base*100:0;
+    bars+='<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:3px"><span style="font-weight:600">'+b.icon+' '+b.name+'</span><span style="color:var(--text3)">'+fmt(val)+(salary>0?' · '+pct.toFixed(0)+'%':'')+'</span></div><div class="budget-bar"><div class="budget-fill" style="width:'+Math.min(100,pct).toFixed(1)+'%;background:'+b.color+'"></div></div></div>';
+  });
+  const diff=salary-totalPlan;
+  let foot='';
+  if(salary>0){
+    if(Math.abs(diff)<1) foot='<div style="font-size:.72rem;color:var(--green);text-align:center;margin-top:4px">✅ Salário 100% distribuído</div>';
+    else if(diff>0) foot='<div style="font-size:.72rem;color:var(--text3);text-align:center;margin-top:4px">Sobram '+fmt(diff)+' do salário sem destino</div>';
+    else foot='<div style="font-size:.72rem;color:var(--orange);text-align:center;margin-top:4px">⚠️ '+fmt(-diff)+' acima do salário — passou do que entra</div>';
+  }
+  return '<div class="card"><div class="card-title">🧭 Pra onde vai o salário</div>'
+    +'<div style="font-size:.68rem;color:var(--text3);margin:-4px 0 9px">Gastos (limites das categorias) + o que você guarda. Comparado ao salário.</div>'
+    +bars
+    +'<div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:700;border-top:1px solid var(--border);padding-top:7px;margin-top:2px"><span>Total planejado</span><span style="font-family:var(--font-d);color:'+(diff<-1?'var(--orange)':'var(--text)')+'">'+fmt(totalPlan)+(salary>0?' / '+fmt(salary):'')+'</span></div>'+foot
+    +'</div>';
+}
 function renderBudget() {
   reconcileBills();
   const budgets=state.budgets||{};
@@ -2590,6 +2620,7 @@ function renderBudget() {
 
   return `
   ${renderSalaryPlanner()}
+  ${renderBudgetDistribution()}
   ${renderSavingsCard()}
   <div class="card">
     <div class="card-title">🎯 Orçamento — ${MONTHS_FULL[currentMonth]}</div>
