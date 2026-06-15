@@ -90,7 +90,7 @@ A navegação (`navTo`) tem estas abas (swipe lateral também troca de aba):
 
 ## 5. 🏗️ Arquitetura & padrões de código (seguir o que já existe)
 
-- **Fonte:** Plus Jakarta Sans (única). Números com `tabular-nums`. **Dinheiro:** `fmt()` (R$), `dreamMoney()`/`fmtUSD()` (dólar no Sonho).
+- **Fonte:** Inter (única — Stripe-inspired redesign v42). Números com `tabular-nums`. **Dinheiro:** `fmt()` (R$), `dreamMoney()`/`fmtUSD()` (dólar no Sonho).
 - **Estado:** `state` global; `saveState()` grava local + dispara `pushToFirebase()`; `subscribeFirebase()` aplica o doc remoto.
 - **Campo novo que sincroniza:** adicionar em **3 lugares** → `defaultState()`, `pushToFirebase()` (objeto do `.set`) e `subscribeFirebase()` (aplicar do doc). (Campos dentro de `transactions[]` sincronizam sozinhos, pois o array vai inteiro.)
 - **Trava anti-apagão:** `coupleLoaded` — `pushToFirebase()` NÃO escreve antes de carregar o casal (evita sobrescrever com estado vazio). **Nunca remover essa trava.**
