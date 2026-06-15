@@ -626,7 +626,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);min-height
   <div class="form-grid">
     <div class="form-group full"><label class="form-label">Classe</label>
       <select class="form-select" id="assetClass" onchange="updateAssetFields()"></select></div>
-    <div class="form-group full" id="assetTickerRow"><label class="form-label">Código (ticker)</label><input class="form-input" id="assetTicker" placeholder="Ex: TAEE11"/></div>
+    <div class="form-group full" id="assetTickerRow"><label class="form-label">Código (ticker)</label><input class="form-input" id="assetTicker" placeholder="Ex: TAEE11" list="tickerSuggestions" autocomplete="off" />
+<datalist id="tickerSuggestions"></datalist></div>
     <div class="form-group full"><label class="form-label">Nome (opcional)</label><input class="form-input" id="assetName" placeholder="Ex: Taesa / Tesouro Selic 2031"/></div>
     <div class="form-group full" id="assetRFRow" style="display:none"><label class="form-label">Valor aplicado (R$)</label><input class="form-input" id="assetRF" type="number" inputmode="decimal" step="0.01" placeholder="0,00"/></div>
   </div>
@@ -930,7 +931,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v45'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v46'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -4037,6 +4038,17 @@ function renderArcaCard(){
   return h;
 }
 let editingAssetId=null;
+const TICKER_SUGGESTIONS=['PETR4','VALE3','ITUB4','BBDC4','ABEV3','MGLU3','WEGE3','TAEE11','BBAS3','SUZB3','LREN3','RENT3','GGBR4','KLBN11','ITSA4','BBSE3','PRIO3','VBBR3','CSAN3','RADL3','HAPV3','QUAL3','TOTS3','GOAU4','ELET3','FLRY3','ENGI11','PSSA3','ALPA4','CMIG4','EQTL3','VIVT3','TIMS3','VILG11','HGLG11','KNCR11','RBRF11','XPML11','KNRI11','HCTR11','VGI11','CPTS11','BTLG11','GGRC11','TGAR11','VIFI11','BCFF11','ALZR11','VSHO11','HSAF11','KNSC11','VISC11','HGCR11','BDIF11','VOO','IVV','VTI','QQQ','BUSD','USDT','BTC','ETH','SOL','HODL'];
+function setupAssetTickerSuggestions(){
+  const input=document.getElementById('assetTicker');
+  const list=document.getElementById('tickerSuggestions');
+  if(!input||!list) return;
+  input.addEventListener('input',()=>{
+    const q=input.value.trim().toUpperCase();
+    if(!q){ list.innerHTML=''; return; }
+    list.innerHTML=TICKER_SUGGESTIONS.filter(x=>x.startsWith(q)).slice(0,12).map(x=>'<option value="'+x+'"\/>').join('');
+  });
+}
 function updateAssetFields(){
   const rf=document.getElementById('assetClass').value==='renda_fixa';
   document.getElementById('assetTickerRow').style.display=rf?'none':'';
@@ -4095,6 +4107,7 @@ function openAssetModal(id){
   document.getElementById('btnDeleteAsset').style.display=a?'flex':'none';
   updateAssetFields();
   document.getElementById('assetModal').classList.add('open');
+    setupAssetTickerSuggestions();
 }
 function closeAssetModal(){ document.getElementById('assetModal').classList.remove('open'); editingAssetId=null; }
 function saveAsset(){
