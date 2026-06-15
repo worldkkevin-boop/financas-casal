@@ -924,7 +924,7 @@ async function saveFcmToken(token){
 
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const APP_VERSION = 'v40'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
+const APP_VERSION = 'v41'; // bata com o CACHE do sw.js — ajuda a saber se o celular atualizou
 const CATS_EXPENSE = [
   {id:'moradia',name:'Moradia',icon:'🏠',color:'#6c8eff'},
   {id:'alimentacao',name:'Alimentação',icon:'🛒',color:'#34d48a'},
@@ -2732,6 +2732,14 @@ function unhideCategory(id){
 // ============================================================
 // GOALS / CAIXINHAS
 // ============================================================
+// Caixinhas/metas marcadas como 🛟 Reserva de emergência — contam na reserva da Carteira (ARCA).
+function reserveGoalsSaved(){ return (state.goals||[]).filter(g=>g.isReserve).reduce((s,g)=>s+(g.saved||0),0); }
+function toggleReserveGoal(id){
+  const g=(state.goals||[]).find(x=>x.id===id); if(!g) return;
+  g.isReserve=!g.isReserve;
+  saveState(); renderCurrentTab();
+  showToast(g.isReserve?'🛟 Marcada como Reserva — agora conta na Carteira':'Desmarcada da Reserva','success');
+}
 function goalRec(g) {
   if (g.type==='caixinha'||!g.deadline||!g.target) return null;
   const now=new Date();
@@ -2760,10 +2768,11 @@ function renderGoalCard(g) {
 
   return `<div class="caixinha-item${done?' complete':''}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
-      <div><div style="font-size:1.25rem;margin-bottom:2px">${esc(g.icon)||(isCaixinha?'💰':'🎯')}</div><div style="font-weight:600;font-size:.9rem">${esc(g.name)}</div>${g.deadline&&!done?'<div style="font-size:.7rem;color:var(--text3);margin-top:1px">📅 '+esc(g.deadline)+'</div>':''}</div>
+      <div><div style="font-size:1.25rem;margin-bottom:2px">${esc(g.icon)||(isCaixinha?'💰':'🎯')}</div><div style="font-weight:600;font-size:.9rem">${esc(g.name)}${g.isReserve?' <span style="font-size:.62rem;color:#34d48a;font-weight:800;background:#34d48a22;padding:2px 6px;border-radius:8px;white-space:nowrap">🛟 Reserva</span>':''}</div>${g.deadline&&!done?'<div style="font-size:.7rem;color:var(--text3);margin-top:1px">📅 '+esc(g.deadline)+'</div>':''}</div>
       ${pct!==null?'<div style="font-family:var(--font-d);font-size:1.15rem;font-weight:800;color:'+(done?'var(--green)':'var(--accent)')+'">'+pct.toFixed(0)+'%</div>':''}
     </div>
     ${progressBar}${recBox}${hist}
+    <button class="btn-ghost" style="width:100%;margin-top:8px;font-size:.74rem;color:${g.isReserve?'var(--green)':'var(--text3)'}" onclick="toggleReserveGoal('${g.id}')">${g.isReserve?'🛟 É a sua Reserva de emergência ✓ (toque pra desmarcar)':'🛟 Usar como Reserva de emergência'}</button>
     ${!done?`<div style="display:flex;gap:7px;margin-top:11px">
       <button class="btn-secondary" style="flex:1;padding:8px;font-size:.82rem" onclick="addToGoal('${g.id}')">💰 Depositar</button>
       ${saved>0?'<button class="btn-secondary" style="padding:8px 11px;font-size:.82rem" onclick="withdrawFromGoal(\''+g.id+'\')">↩ Retirar</button>':''}
@@ -3857,7 +3866,9 @@ function renderArcaCard(){
   if(total<=0 && !(p.custoVida>0)) return ''; // só aparece quando há algo
   // reserva de emergência (6x custo de vida) — comparada ao pilar Caixa
   const custo=p.custoVida||0, resvTarget=custo*6, caixa=vals.find(v=>v.cls==='renda_fixa').val;
-  const resvPct=resvTarget>0?Math.min(100,caixa/resvTarget*100):0;
+  const resvFromGoals=reserveGoalsSaved();           // caixinhas marcadas como 🛟 Reserva contam aqui
+  const resvHave=caixa+resvFromGoals;
+  const resvPct=resvTarget>0?Math.min(100,resvHave/resvTarget*100):0;
   const aporte=p.aporte||0; const split=aporte>0?arcaAporteSplit(aporte):null;
 
   let h='<div class="card fade-up" style="border-color:#6c8eff33">';
@@ -3876,9 +3887,11 @@ function renderArcaCard(){
   h+='<div class="divider"></div>';
   h+='<div class="setting-row" style="padding:6px 0"><div><div class="setting-label">🛟 Reserva de emergência</div><div class="setting-sub">6 meses do seu custo de vida</div></div><input class="setting-input" type="number" inputmode="decimal" value="'+(custo||'')+'" placeholder="custo/mês" onchange="setCustoVida(this.value)"/></div>';
   if(resvTarget>0){
-    const ok=caixa>=resvTarget;
+    const ok=resvHave>=resvTarget;
     h+='<div class="budget-bar"><div class="budget-fill" style="width:'+resvPct.toFixed(0)+'%;background:'+(ok?'var(--green)':'var(--orange)')+'"></div></div>'
-      +'<div style="font-size:.74rem;text-align:center;margin-top:5px;color:'+(ok?'var(--green)':'var(--orange)')+'">'+(ok?'✅ Reserva completa ('+fmt(caixa)+')':'Faltam '+fmt(resvTarget-caixa)+' de '+fmt(resvTarget)+' — priorize o Caixa antes de investir mais')+'</div>';
+      +'<div style="font-size:.74rem;text-align:center;margin-top:5px;color:'+(ok?'var(--green)':'var(--orange)')+'">'+(ok?'✅ Reserva completa ('+fmt(resvHave)+') — foco agora em investir e no sonho! 🚀':'Faltam '+fmt(resvTarget-resvHave)+' de '+fmt(resvTarget)+' — priorize a Reserva/Caixa antes de investir mais')+'</div>';
+    if(resvFromGoals>0) h+='<div style="font-size:.66rem;color:var(--text3);text-align:center;margin-top:2px">inclui '+fmt(resvFromGoals)+' de caixinha(s) marcada(s) como 🛟 Reserva</div>';
+    else h+='<div style="font-size:.66rem;color:var(--text3);text-align:center;margin-top:2px">Tem uma caixinha de reserva? Marque ela como 🛟 Reserva na aba Metas pra contar aqui.</div>';
   }
 
   // planejador de aporte
