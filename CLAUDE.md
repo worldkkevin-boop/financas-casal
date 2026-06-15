@@ -6,7 +6,8 @@ Guia de trabalho + referência mestre do projeto. **Ler antes de mexer.**
 
 ## 1. O que é
 - **PWA de finanças de um casal**, **arquivo único** `index.html` (HTML + CSS + JS vanilla, **sem build, sem framework**).
-- Instalável no celular (PWA). Tema escuro, fonte Plus Jakarta Sans.
+- Instalável no celular (PWA). Tema escuro (padrão) + claro. Fonte **Inter** (Stripe-inspired redesign v42).
+- Design system: Stripe-inspired — paleta roxa (#533afd), sombras azuladas (rgba(50,50,93,...)), bordas 8px.
 - Dados: `localStorage` + sincronização com **Firebase Firestore**. Login com **Google**.
 - Deploy: **push na `main` → GitHub Pages publica sozinho.**
 - Arquivos: `index.html` (tudo), `sw.js` (service worker/cache), `manifest.json`, `icon.svg`, `firestore.rules`.
